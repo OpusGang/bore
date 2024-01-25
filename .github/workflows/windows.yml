@@ -38,5 +38,5 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
-        name: dirtylines-win64
-        path: builddir/libdirtylines.dll
+        name: bore-win64
+        path: builddir/libbore.dll
