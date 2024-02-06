@@ -1,12 +1,11 @@
 #include <stdlib.h>
-#include "VapourSynth4.h"
-#include "VSHelper4.h"
+#include <vapoursynth/VapourSynth4.h>
+#include <vapoursynth/VSHelper4.h>
 
 typedef struct {
     VSNode *node;
     float lower;
     float upper;
-    int numrows;
     int plane;
     int top;
     int bottom;
@@ -109,24 +108,21 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
         ptrdiff_t stride = vsapi->getStride(dst, d->plane) / 4;
         int w = vsapi->getFrameWidth(src, d->plane);
         int h = vsapi->getFrameHeight(src, d->plane);
+        float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
         if (d->top != 0) {
-            float *dstp = vsapi->getWritePtr(dst, d->plane);
             for (int row = d->top; row > -1; --row)
                 processRow(row, w, stride, dstp, d);
         }
         if (d->bottom != 0) {
-            float *dstp = vsapi->getWritePtr(dst, d->plane);
             for (int row = h - d->bottom; row < h; ++row)
                 processRow(row, w, stride, dstp, d);
         }
         if (d->left != 0) {
-            float *dstp = vsapi->getWritePtr(dst, d->plane);
             for (int column = d->left; column > -1; --column)
                 processColumn(column, h, stride, dstp, d);
         }
         if (d->right != 0) {
-            float *dstp = vsapi->getWritePtr(dst, d->plane);
             for (int column = w - d->right; column < w; ++column)
                 processColumn(column, h, stride, dstp, d);
         }

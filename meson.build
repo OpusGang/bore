@@ -1,8 +1,7 @@
 project('bore', 'c', 'cpp',
   version : '1',
-  default_options : ['warning_level=3', 'buildtype=release', 'b_ndebug=if-release'])
+  default_options : ['c_std=c17', 'cpp_std=c++17', 'warning_level=3', 'buildtype=release', 'b_ndebug=if-release'])
 
-add_project_arguments('-ffast-math', language : 'c')
 
 sources = [
      'src/bore.c'
