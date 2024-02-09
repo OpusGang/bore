@@ -22,3 +22,8 @@ meson build
 ninja -C build 
 ```
 
+In Windows you can configure MinGW and run the meson build, but the easiest way is to [download LLVM](https://github.com/llvm/llvm-project/releases) (*-win64.exe file) and install with the **path option ticked**, then run:
+
+```ps
+clang -O2 -march=native -shared -o bore.dll -I"C:\Program Files\VapourSynth\sdk\include" src\bore.c
+```
