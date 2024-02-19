@@ -111,7 +111,7 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
         if (d->top != 0) {
-            for (int row = d->top; row > -1; --row)
+            for (int row = d->top - 1; row > -1; --row)
                 processRow(row, w, stride, dstp, d);
         }
         if (d->bottom != 0) {
@@ -119,7 +119,7 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
                 processRow(row, w, stride, dstp, d);
         }
         if (d->left != 0) {
-            for (int column = d->left; column > -1; --column)
+            for (int column = d->left - 1; column > -1; --column)
                 processColumn(column, h, stride, dstp, d);
         }
         if (d->right != 0) {
@@ -168,8 +168,6 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.top = 0;
 
-    if (d.top < 0)
-        d.top += vi->height;
     else if (d.top > vi->height / 2) {
         vsapi->mapSetError(out, "FixBrightness: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
@@ -180,7 +178,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.bottom = 0;
 
-    if (d.bottom < 0)
+    else if (d.bottom < 0)
         d.bottom += vi->height;
     else if (d.bottom > vi->height / 2) {
         vsapi->mapSetError(out, "FixBrightness: bottom must be in [-height / 2, height / 2]");
@@ -189,7 +187,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     }
 
 
-    d.left = vsapi->mapGetInt(in, "bottom", 0, &err);
+    d.left = vsapi->mapGetInt(in, "left", 0, &err);
     if (err)
         d.left = 0;
 
@@ -204,7 +202,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.right = 0;
 
-    if (d.right < 0)
+    else if (d.right < 0)
         d.right += vi->width;
     else if (d.right > vi->width - 1) {
         vsapi->mapSetError(out, "FixBrightness: right must be in [-width / 2, width / 2]");
