@@ -14,13 +14,13 @@ typedef struct {
     int step;
 } FixBrightnessData;
 
-static void processRow(int row, int w, ptrdiff_t stride, float *dstp, FixBrightnessData *d) {
+static void processRow(int row, int w, int h, ptrdiff_t stride, float *dstp, FixBrightnessData *d) {
     int x;
     float cur;
     float ref;
 
     int sign = 1;
-    if (row > w / 2)
+    if (row > h / 2)
         sign = -1;
 
     float sum = 0.f;
@@ -55,13 +55,13 @@ static void processRow(int row, int w, ptrdiff_t stride, float *dstp, FixBrightn
     }
 }
 
-static void processColumn(int column, int h, ptrdiff_t stride, float *dstp, FixBrightnessData *d) {
+static void processColumn(int column, int w, int h, ptrdiff_t stride, float *dstp, FixBrightnessData *d) {
     int x;
     float cur;
     float ref;
 
     int sign = 1;
-    if (column > h / 2)
+    if (column > w / 2)
         sign = -1;
 
     float sum = 0.f;
@@ -112,19 +112,19 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
 
         if (d->top != 0) {
             for (int row = d->top - 1; row > -1; --row)
-                processRow(row, w, stride, dstp, d);
+                processRow(row, w, h, stride, dstp, d);
         }
         if (d->bottom != 0) {
             for (int row = h - d->bottom; row < h; ++row)
-                processRow(row, w, stride, dstp, d);
+                processRow(row, w, h, stride, dstp, d);
         }
         if (d->left != 0) {
             for (int column = d->left - 1; column > -1; --column)
-                processColumn(column, h, stride, dstp, d);
+                processColumn(column, w, h, stride, dstp, d);
         }
         if (d->right != 0) {
             for (int column = w - d->right; column < w; ++column)
-                processColumn(column, h, stride, dstp, d);
+                processColumn(column, w, h, stride, dstp, d);
         }
 
 
