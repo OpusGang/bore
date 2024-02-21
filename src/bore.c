@@ -178,10 +178,8 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.bottom = 0;
 
-    else if (d.bottom < 0)
-        d.bottom += vi->height;
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "FixBrightness: bottom must be in [-height / 2, height / 2]");
+        vsapi->mapSetError(out, "FixBrightness: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -191,7 +189,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.left = 0;
 
-    else if (d.left > vi->width - 1) {
+    else if (d.left > vi->width / 2) {
         vsapi->mapSetError(out, "FixBrightness: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
@@ -202,10 +200,8 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.right = 0;
 
-    else if (d.right < 0)
-        d.right += vi->width;
-    else if (d.right > vi->width - 1) {
-        vsapi->mapSetError(out, "FixBrightness: right must be in [-width / 2, width / 2]");
+    else if (d.right > vi->width / 2) {
+        vsapi->mapSetError(out, "FixBrightness: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
