@@ -8,8 +8,9 @@ sources = [
 ]
 
 vapoursynth_dep = dependency('vapoursynth', version: '>=55').partial_dependency(compile_args : true, includes : true)
+gsl_dep = dependency('gsl')
 
-deps = [vapoursynth_dep]
+deps = [vapoursynth_dep, gsl_dep]
 
 shared_module('bore', sources,
   dependencies : deps,
