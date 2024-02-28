@@ -25,6 +25,8 @@ typedef struct {
     VSNode *node;
     float lower;
     float upper;
+    float thrlo;
+    float thrhi;
     int plane;
     int top;
     int bottom;
@@ -42,6 +44,7 @@ static void processRow(int row, int w, int h, ptrdiff_t stride, float *dstp, Fix
     if (row > h / 2)
         sign = -1;
 
+    float tmp;
     float sum = 0.f;
     int div = 0;
 
@@ -50,13 +53,11 @@ static void processRow(int row, int w, int h, ptrdiff_t stride, float *dstp, Fix
     for (x = 0; x < w; x += d->step) {
         cur = (dstp[x]);
         ref = (dstp[sign * stride + x]);
-        // add to sum if current and reference are within (lower, upper)
-        if (cur < d->upper && cur > d->lower && ref < d->upper && ref > d->lower) {
-            // make sure there's no sign change
-            if ((cur > 0 && ref > 0) || (cur < 0 && ref < 0)) { 
-                sum += ref / cur;
-                div += 1;
-            }
+        tmp = ref / cur;
+        // add to sum if current and reference are within (lower, upper), quotient is within thresholds and there's no sign change
+        if (cur < d->upper && cur > d->lower && ref < d->upper && ref > d->lower && (tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
+            sum += tmp;
+            div += 1;
         }
     }
 
@@ -83,6 +84,7 @@ static void processColumn(int column, int w, int h, ptrdiff_t stride, float *dst
     if (column > w / 2)
         sign = -1;
 
+    float tmp;
     float sum = 0.f;
     int div = 0;
 
@@ -90,13 +92,11 @@ static void processColumn(int column, int w, int h, ptrdiff_t stride, float *dst
     for (x = 0; x < h; x += d->step) {
         cur = (dstp[x * stride + column]);
         ref = (dstp[x * stride + column + sign]);
-        // add to sum if current and reference are within (lower, upper)
-        if (cur < d->upper && cur > d->lower && ref < d->upper && ref > d->lower) {
-            // make sure there's no sign change
-            if ((cur > 0 && ref > 0) || (cur < 0 && ref < 0)) { 
-                sum += ref / cur;
-                div += 1;
-            }
+        tmp = ref / cur;
+        // add to sum if current and reference are within (lower, upper), quotient is within thresholds and there's no sign change
+        if (cur < d->upper && cur > d->lower && ref < d->upper && ref > d->lower && (tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
+            sum += tmp;
+            div += 1;
         }
     }
 
@@ -183,6 +183,14 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     if (err)
         d.upper = 1.f;
 
+    d.thrlo = (float)vsapi->mapGetFloat(in, "thrlo", 0, &err);
+    if (err)
+        d.thrlo = 0.1;
+
+    d.thrhi = (float)vsapi->mapGetFloat(in, "thrhi", 0, &err);
+    if (err)
+        d.thrhi = 8.f;
+
     d.top = vsapi->mapGetInt(in, "top", 0, &err);
     if (err)
         d.top = 0;
@@ -203,7 +211,6 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-
     d.left = vsapi->mapGetInt(in, "left", 0, &err);
     if (err)
         d.left = 0;
@@ -213,7 +220,6 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->freeNode(d.node);
         return;
     }
-
 
     d.right = vsapi->mapGetInt(in, "right", 0, &err);
     if (err)
@@ -240,6 +246,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->createVideoFilter(out, "FixBrightness", vi, fixBrightnessGetFrame, fixBrightnessFree, fmParallel, deps, 1, data, core);
 }
 
+<<<<<<< HEAD
 typedef struct {
     VSNode *node;
     int plane;
@@ -557,7 +564,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
+    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;thrlo:float:opt;thrhi:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
     vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;mode:int:opt;", "clip:vnode;", linearRegressionCreate, NULL, plugin);
 }
 
