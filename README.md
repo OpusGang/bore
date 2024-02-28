@@ -19,6 +19,9 @@ core.bore.FixBrightness(clip clip, int top=0, int bottom=0, int left=0, int righ
 
 This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html#multi-parameter-regression) with all three planes of the reference line as input parameters to find a proper adjustment. This is more robust and can better deal with dirty lines created in different color spaces, but is slower and can yield worse results than FixBrightness if there's no dependency among planes.
 
+## Requirements
+* [GSL](https://www.gnu.org/software/gsl/)
+
 ## Usage
 
 ```
