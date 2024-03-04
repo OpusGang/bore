@@ -17,7 +17,26 @@ core.bore.FixBrightness(clip clip, int top=0, int bottom=0, int left=0, int righ
 * `step = 1`: Speed up processing ever so slightly by lowering the number of pixels used to find the adjustment. Might be an unnecessary parameter.
 * `plane = 0`: Plane to process.
 
-## Compilation
+# Balance
+
+This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html#multi-parameter-regression) with all three planes of the reference line as input parameters to find a proper adjustment. This is more robust and can better deal with dirty lines created in different color spaces, but is slower and can yield worse results than FixBrightness if there's no dependency among planes.
+
+## Requirements
+* [GSL](https://www.gnu.org/software/gsl/)
+
+## Usage
+
+```
+core.bore.Balance(clip clip, int top=0, int bottom=0, int left=0, int right=0, float upper=1.0, float lower=0.0, int plane=0)
+```
+
+* `clip`: 32-bit float clip with three planes without subsampling, e.g. `YUV444PS`.
+* `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
+* `upper = 1`: Upper limit of range, this allows excluding pixels from being adjusted.
+* `lower = 0`: Lower limit of range, this allows excluding pixels from being adjusted.
+* `plane = 0`: Plane to adjust.
+
+# Compilation
 
 ```sh 
 meson build
