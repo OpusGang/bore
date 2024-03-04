@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <vapoursynth/VapourSynth4.h>
 #include <vapoursynth/VSHelper4.h>
+#include <gsl/gsl_fit.h>
 #include <gsl/gsl_multifit.h>
 
 typedef struct {
@@ -238,7 +239,6 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->createVideoFilter(out, "FixBrightness", vi, fixBrightnessGetFrame, fixBrightnessFree, fmParallel, deps, 1, data, core);
 }
 
-
 typedef struct {
     VSNode *node;
     float lower;
@@ -248,9 +248,85 @@ typedef struct {
     int bottom;
     int left;
     int right;
-} MultipleLinearRegressionData;
+    int mode;
+} LinearRegressionData;
 
-static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, MultipleLinearRegressionData *d) {
+static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, LinearRegressionData *d) {
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    int i;
+
+    cur = malloc(sizeof(double) * w);
+    ref = malloc(sizeof(double) * w);
+
+    dstp += row * stride;
+    for (i = 0; i < w; i++) {
+        cur[i] = dstp[i];
+        ref[i] = dstp[sign * stride + i];
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
+    gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
+
+    // adjust each pixel
+    for (i = 0; i < w; i++) {
+        if (dstp[i] < d->upper && dstp[i] > d->lower)
+            dstp[i] *= c1;
+    }
+
+    free(cur);
+    free(ref);
+}
+
+static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *dstp, LinearRegressionData *d) {
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    int i;
+
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
+
+    dstp += column;
+    for (i = 0; i < h; i++) {
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
+    gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
+
+    int j;
+    // adjust each pixel
+    for (i = 0; i < h; i++) {
+        j = i * stride + column;
+        if (dstp[j] < d->upper && dstp[j] > d->lower) {
+            dstp[j] *= c1;
+        }
+    }
+
+    free(cur);
+    free(ref);
+}
+
+static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, LinearRegressionData *d) {
     int i;
     int sign = 1;
     if (row > h / 2)
@@ -283,7 +359,7 @@ static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, 
     }
 }
 
-static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, MultipleLinearRegressionData *d) {
+static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, LinearRegressionData *d) {
     int i;
     int j;
     int sign = 1;
@@ -314,8 +390,8 @@ static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *
     }
 }
 
-static const VSFrame *VS_CC multipleLinearRegressionGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MultipleLinearRegressionData *d = (MultipleLinearRegressionData *)instanceData;
+static const VSFrame *VS_CC linearRegressionGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LinearRegressionData *d = (LinearRegressionData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -328,27 +404,45 @@ static const VSFrame *VS_CC multipleLinearRegressionGetFrame(int n, int activati
         int w = vsapi->getFrameWidth(src, d->plane);
         int h = vsapi->getFrameHeight(src, d->plane);
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
-        float *dstp1 = (float *) vsapi->getWritePtr(dst, 0);
-        float *dstp2 = (float *) vsapi->getWritePtr(dst, 1);
-        float *dstp3 = (float *) vsapi->getWritePtr(dst, 2);
+        if (d->mode == 1) {
+            float *dstp1 = (float *) vsapi->getWritePtr(dst, 0);
+            float *dstp2 = (float *) vsapi->getWritePtr(dst, 1);
+            float *dstp3 = (float *) vsapi->getWritePtr(dst, 2);
 
-        if (d->top != 0) {
-            for (int row = d->top - 1; row > -1; --row)
-                processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowSLR(row, w, h, stride, dstp, d);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowSLR(row, w, h, stride, dstp, d);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnSLR(column, w, h, stride, dstp, d);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnSLR(column, w, h, stride, dstp, d);
+            }
         }
-        if (d->bottom != 0) {
-            for (int row = h - d->bottom; row < h; ++row)
-                processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
-        }
-        if (d->left != 0) {
-            for (int column = d->left - 1; column > -1; --column)
-                processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
-        }
-        if (d->right != 0) {
-            for (int column = w - d->right; column < w; ++column)
-                processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
-        }
-
 
         vsapi->freeFrame(src);
 
@@ -358,25 +452,19 @@ static const VSFrame *VS_CC multipleLinearRegressionGetFrame(int n, int activati
     return NULL;
 }
 
-static void VS_CC multipleLinearRegressionFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    MultipleLinearRegressionData *d = (MultipleLinearRegressionData *)instanceData;
+static void VS_CC linearRegressionFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    LinearRegressionData *d = (LinearRegressionData *)instanceData;
     vsapi->freeNode(d->node);
     free(d);
 }
 
-static void VS_CC multipleLinearRegressionCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    MultipleLinearRegressionData d;
-    MultipleLinearRegressionData *data;
+static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    LinearRegressionData d;
+    LinearRegressionData *data;
     int err;
 
     d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat || vi->format.subSamplingH > 0 || vi->format.subSamplingW > 0 || vi->format.numPlanes != 3) {
-        vsapi->mapSetError(out, "MultipleLinearRegression: only constant format single float input with three planes and no subsampling are supported");
-        vsapi->freeNode(d.node);
-        return;
-    }
 
     d.lower = (float)vsapi->mapGetFloat(in, "lower", 0, &err);
     if (err)
@@ -391,7 +479,7 @@ static void VS_CC multipleLinearRegressionCreate(const VSMap *in, VSMap *out, vo
         d.top = 0;
 
     else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "MultipleLinearRegression: top must be in [0, height / 2]");
+        vsapi->mapSetError(out, "Balance: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -401,7 +489,7 @@ static void VS_CC multipleLinearRegressionCreate(const VSMap *in, VSMap *out, vo
         d.bottom = 0;
 
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "MultipleLinearRegression: bottom must be in [0, height / 2]");
+        vsapi->mapSetError(out, "Balance: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -412,7 +500,7 @@ static void VS_CC multipleLinearRegressionCreate(const VSMap *in, VSMap *out, vo
         d.left = 0;
 
     else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "MultipleLinearRegression: left must be in [0, width / 2]");
+        vsapi->mapSetError(out, "Balance: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -423,7 +511,7 @@ static void VS_CC multipleLinearRegressionCreate(const VSMap *in, VSMap *out, vo
         d.right = 0;
 
     else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "MultipleLinearRegression: right must be in [0, width / 2]");
+        vsapi->mapSetError(out, "Balance: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -432,16 +520,40 @@ static void VS_CC multipleLinearRegressionCreate(const VSMap *in, VSMap *out, vo
     if (err)
         d.plane = 0;
 
-    data = (MultipleLinearRegressionData *)malloc(sizeof(d));
+
+    d.mode = vsapi->mapGetInt(in, "mode", 0, &err);
+    if (err)
+        d.mode = 0;
+    
+    else if (d.mode > 1 || d.mode < 0) {
+        vsapi->mapSetError(out, "Balance: mode must be either 0 (simple) or 1 (multiple)");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
+        vsapi->mapSetError(out, "Balance: only constant format single float input");
+        vsapi->freeNode(d.node);
+        return;
+    }
+    if (d.mode == 1) {
+        if (vi->format.subSamplingH > 0 || vi->format.subSamplingW > 0 || vi->format.numPlanes != 3) {
+            vsapi->mapSetError(out, "Balance: mode 1 (multiple) requires three planes with no subsampling");
+            vsapi->freeNode(d.node);
+            return;
+        }
+    }
+
+    data = (LinearRegressionData *)malloc(sizeof(d));
     *data = d;
 
     VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "MultipleLinearRegression", vi, multipleLinearRegressionGetFrame, multipleLinearRegressionFree, fmParallel, deps, 1, data, core);
+    vsapi->createVideoFilter(out, "Balance", vi, linearRegressionGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
-    vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;plane:int:opt;", "clip:vnode;", multipleLinearRegressionCreate, NULL, plugin);
+    vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;plane:int:opt;mode:int:opt;", "clip:vnode;", linearRegressionCreate, NULL, plugin);
 }
 
