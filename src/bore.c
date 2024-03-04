@@ -257,7 +257,11 @@ typedef struct {
     int mode;
 } LinearRegressionData;
 
+<<<<<<< HEAD
 static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) {
+=======
+static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, LinearRegressionData *d) {
+>>>>>>> 425fa98 (add simple lin reg mode to balance)
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -281,6 +285,7 @@ static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) 
     const double *const_cur = cur;
     const double *const_ref = ref;
 
+<<<<<<< HEAD
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
 
     if (!status && isfinite(c1)) {
@@ -288,13 +293,25 @@ static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) 
         for (i = 0; i < w; i++) {
             dstp[i] *= c1;
         }
+=======
+    gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
+
+    // adjust each pixel
+    for (i = 0; i < w; i++) {
+        if (dstp[i] < d->upper && dstp[i] > d->lower)
+            dstp[i] *= c1;
+>>>>>>> 425fa98 (add simple lin reg mode to balance)
     }
 
     free(cur);
     free(ref);
 }
 
+<<<<<<< HEAD
 static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *dstp) {
+=======
+static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *dstp, LinearRegressionData *d) {
+>>>>>>> 425fa98 (add simple lin reg mode to balance)
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -318,6 +335,7 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     const double *const_cur = cur;
     const double *const_ref = ref;
 
+<<<<<<< HEAD
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
 
     if (!status && isfinite(c1)) {
@@ -325,6 +343,15 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
         // adjust each pixel
         for (i = 0; i < h; i++) {
             j = i * stride;
+=======
+    gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
+
+    int j;
+    // adjust each pixel
+    for (i = 0; i < h; i++) {
+        j = i * stride + column;
+        if (dstp[j] < d->upper && dstp[j] > d->lower) {
+>>>>>>> 425fa98 (add simple lin reg mode to balance)
             dstp[j] *= c1;
         }
     }
@@ -333,7 +360,11 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     free(ref);
 }
 
+<<<<<<< HEAD
 static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
+=======
+static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, LinearRegressionData *d) {
+>>>>>>> 425fa98 (add simple lin reg mode to balance)
     int i;
     int sign = 1;
     if (row > h / 2)
@@ -564,7 +595,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;thrlo:float:opt;thrhi:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
+    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;thrlo:float:opt;thrhi:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
     vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;mode:int:opt;", "clip:vnode;", linearRegressionCreate, NULL, plugin);
 }
 
