@@ -241,8 +241,6 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
 
 typedef struct {
     VSNode *node;
-    float lower;
-    float upper;
     int plane;
     int top;
     int bottom;
@@ -251,7 +249,7 @@ typedef struct {
     int mode;
 } LinearRegressionData;
 
-static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, LinearRegressionData *d) {
+static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) {
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -279,15 +277,14 @@ static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, 
 
     // adjust each pixel
     for (i = 0; i < w; i++) {
-        if (dstp[i] < d->upper && dstp[i] > d->lower)
-            dstp[i] *= c1;
+        dstp[i] *= c1;
     }
 
     free(cur);
     free(ref);
 }
 
-static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *dstp, LinearRegressionData *d) {
+static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *dstp) {
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -317,16 +314,14 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     // adjust each pixel
     for (i = 0; i < h; i++) {
         j = i * stride + column;
-        if (dstp[j] < d->upper && dstp[j] > d->lower) {
-            dstp[j] *= c1;
-        }
+        dstp[j] *= c1;
     }
 
     free(cur);
     free(ref);
 }
 
-static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, LinearRegressionData *d) {
+static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
     int i;
     int sign = 1;
     if (row > h / 2)
@@ -353,13 +348,11 @@ static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, 
 
     // adjust each pixel
     for (i = 0; i < w; i++) {
-        if (dstp[i] < d->upper && dstp[i] > d->lower) {
-            dstp[i] = gsl_vector_get(b, 0) * dstp1[i] + gsl_vector_get(b, 1) * dstp2[i] + gsl_vector_get(b, 2) * dstp3[i];
-        }
+        dstp[i] = gsl_vector_get(b, 0) * dstp1[i] + gsl_vector_get(b, 1) * dstp2[i] + gsl_vector_get(b, 2) * dstp3[i];
     }
 }
 
-static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3, LinearRegressionData *d) {
+static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
     int i;
     int j;
     int sign = 1;
@@ -384,9 +377,7 @@ static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *
     // adjust each pixel
     for (i = 0; i < h; i++) {
         j = i * stride + column;
-        if (dstp[j] < d->upper && dstp[j] > d->lower) {
-            dstp[j] = gsl_vector_get(b, 0) * dstp1[j] + gsl_vector_get(b, 1) * dstp2[j] + gsl_vector_get(b, 2) * dstp3[j];
-        }
+        dstp[j] = gsl_vector_get(b, 0) * dstp1[j] + gsl_vector_get(b, 1) * dstp2[j] + gsl_vector_get(b, 2) * dstp3[j];
     }
 }
 
@@ -411,36 +402,36 @@ static const VSFrame *VS_CC linearRegressionGetFrame(int n, int activationReason
 
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
-                    processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+                    processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3);
             }
             if (d->bottom != 0) {
                 for (int row = h - d->bottom; row < h; ++row)
-                    processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+                    processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3);
             }
             if (d->left != 0) {
                 for (int column = d->left - 1; column > -1; --column)
-                    processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+                    processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
             }
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
-                    processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, d);
+                    processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
             }
         } else {
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
-                    processRowSLR(row, w, h, stride, dstp, d);
+                    processRowSLR(row, w, h, stride, dstp);
             }
             if (d->bottom != 0) {
                 for (int row = h - d->bottom; row < h; ++row)
-                    processRowSLR(row, w, h, stride, dstp, d);
+                    processRowSLR(row, w, h, stride, dstp);
             }
             if (d->left != 0) {
                 for (int column = d->left - 1; column > -1; --column)
-                    processColumnSLR(column, w, h, stride, dstp, d);
+                    processColumnSLR(column, w, h, stride, dstp);
             }
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
-                    processColumnSLR(column, w, h, stride, dstp, d);
+                    processColumnSLR(column, w, h, stride, dstp);
             }
         }
 
@@ -465,14 +456,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
 
     d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
-
-    d.lower = (float)vsapi->mapGetFloat(in, "lower", 0, &err);
-    if (err)
-        d.lower = 0.f;
-
-    d.upper = (float)vsapi->mapGetFloat(in, "upper", 0, &err);
-    if (err)
-        d.upper = 1.f;
 
     d.top = vsapi->mapGetInt(in, "top", 0, &err);
     if (err)
@@ -554,6 +537,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
-    vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;lower:float:opt;upper:float:opt;plane:int:opt;mode:int:opt;", "clip:vnode;", linearRegressionCreate, NULL, plugin);
+    vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;mode:int:opt;", "clip:vnode;", linearRegressionCreate, NULL, plugin);
 }
 
