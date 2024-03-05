@@ -30,13 +30,13 @@ In multiple (1) `mode`, it uses multiple linear regression with all three planes
 ## Usage
 
 ```
-core.bore.Balance(clip clip, int top=0, int bottom=0, int left=0, int right=0, float upper=1.0, float lower=0.0, int plane=0)
+core.bore.Balance(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0, int mode=0)
 ```
 
 * `clip`: 32-bit float clip.
 * `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
 * `plane = 0`: Plane to adjust.
-* `mode = 0`: Linear regression mode.
+* `mode = 0`: Linear regression mode, 0 for simple and 1 for multiple linear regression using all three planes as parameters (requires no subsampling).
 
 # Compilation
 
