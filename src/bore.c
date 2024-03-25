@@ -356,6 +356,12 @@ static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, 
             dstp[i] = gsl_vector_get(b, 0) * dstp1[i] + gsl_vector_get(b, 1) * dstp2[i] + gsl_vector_get(b, 2) * dstp3[i];
         }
     }
+
+    gsl_vector_free(b);
+    gsl_matrix_free(cov);
+    gsl_multifit_linear_free(ws);
+    gsl_matrix_free(x);
+    gsl_vector_free(y);
 }
 
 static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
@@ -387,6 +393,12 @@ static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *
             dstp[j] = gsl_vector_get(b, 0) * dstp1[j] + gsl_vector_get(b, 1) * dstp2[j] + gsl_vector_get(b, 2) * dstp3[j];
         }
     }
+
+    gsl_vector_free(b);
+    gsl_matrix_free(cov);
+    gsl_multifit_linear_free(ws);
+    gsl_matrix_free(x);
+    gsl_vector_free(y);
 }
 
 static const VSFrame *VS_CC linearRegressionGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
