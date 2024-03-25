@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <math.h>
 #include <stdlib.h>
 #include <vapoursynth/VapourSynth4.h>
 #include <vapoursynth/VSHelper4.h>
@@ -275,7 +276,7 @@ static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) 
 
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
 
-    if (!status) {
+    if (!status && isfinite(c1)) {
         // adjust each pixel
         for (i = 0; i < w; i++) {
             dstp[i] *= c1;
@@ -312,7 +313,7 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
 
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
 
-    if (!status) {
+    if (!status && isfinite(c1)) {
         int j;
         // adjust each pixel
         for (i = 0; i < h; i++) {
