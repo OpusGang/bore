@@ -313,7 +313,7 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     int j;
     // adjust each pixel
     for (i = 0; i < h; i++) {
-        j = i * stride + column;
+        j = i * stride;
         dstp[j] *= c1;
     }
 
