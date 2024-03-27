@@ -23,8 +23,7 @@
 
 typedef struct {
     VSNode *node;
-    float lower;
-    float upper;
+    VSNode *ignore_mask;
     float thrlo;
     float thrhi;
     int plane;
@@ -55,7 +54,7 @@ static void processRow(int row, int w, int h, ptrdiff_t stride, float *dstp, Fix
         ref = (dstp[sign * stride + x]);
         tmp = ref / cur;
         // add to sum if current and reference are within (lower, upper), quotient is within thresholds and there's no sign change
-        if (cur < d->upper && cur > d->lower && ref < d->upper && ref > d->lower && (tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
+        if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
             sum += tmp;
             div += 1;
         }
@@ -63,15 +62,56 @@ static void processRow(int row, int w, int h, ptrdiff_t stride, float *dstp, Fix
 
     // division by zero => neutral
     if (div == 0)
-        sum = 1.f;
+        return;
     // otherwise just mean of the quotient of the two rows
     else
         sum /= div;
 
     // adjust each pixel
     for (x = 0; x < w; x++) {
-        if (dstp[x] < d->upper && dstp[x] > d->lower)
-            dstp[x] *= sum;
+        dstp[x] *= sum;
+    }
+}
+
+static void processRowMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, FixBrightnessData *d) {
+    int x;
+    float cur;
+    float ref;
+
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    float tmp;
+    float sum = 0.f;
+    int div = 0;
+
+    // go through row and get current and reference
+    dstp += stride * row;
+    imaskp += stride * row;
+    for (x = 0; x < w; x += d->step) {
+        if (imaskp[x] < 128 && imaskp[sign * stride + x] < 128) {
+            cur = (dstp[x]);
+            ref = (dstp[sign * stride + x]);
+            tmp = ref / cur;
+            // add to sum if current and reference are within (lower, upper), quotient is within thresholds and there's no sign change
+            if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
+                sum += tmp;
+                div += 1;
+            }
+        }
+    }
+
+    // division by zero => neutral
+    if (div == 0)
+        return;
+    // otherwise just mean of the quotient of the two rows
+    else
+        sum /= div;
+
+    // adjust each pixel
+    for (x = 0; x < w; x++) {
+        dstp[x] *= sum;
     }
 }
 
@@ -94,7 +134,7 @@ static void processColumn(int column, int w, int h, ptrdiff_t stride, float *dst
         ref = (dstp[x * stride + column + sign]);
         tmp = ref / cur;
         // add to sum if current and reference are within (lower, upper), quotient is within thresholds and there's no sign change
-        if (cur < d->upper && cur > d->lower && ref < d->upper && ref > d->lower && (tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
+        if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
             sum += tmp;
             div += 1;
         }
@@ -102,15 +142,54 @@ static void processColumn(int column, int w, int h, ptrdiff_t stride, float *dst
 
     // division by zero => neutral
     if (div == 0)
-        sum = 1.f;
+        return;
     // otherwise just mean of the quotient of the two columns
     else
         sum /= div;
 
     // adjust each pixel
     for (x = 0; x < h; x++) {
-        if (dstp[x * stride + column] < d->upper && dstp[x * stride + column] > d->lower)
-            dstp[x * stride + column] *= sum;
+        dstp[x * stride + column] *= sum;
+    }
+}
+
+static void processColumnMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, FixBrightnessData *d) {
+    int x;
+    float cur;
+    float ref;
+
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    float tmp;
+    float sum = 0.f;
+    int div = 0;
+
+    // go through column and get current and reference
+    for (x = 0; x < h; x += d->step) {
+        if (imaskp[x * stride + column] < 128 && imaskp[x * stride + column + sign] < 128) {
+            cur = (dstp[x * stride + column]);
+            ref = (dstp[x * stride + column + sign]);
+            tmp = ref / cur;
+            // add to sum if current and reference are within (lower, upper), quotient is within thresholds and there's no sign change
+            if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
+                sum += tmp;
+                div += 1;
+            }
+        }
+    }
+
+    // division by zero => neutral
+    if (div == 0)
+        return;
+    // otherwise just mean of the quotient of the two columns
+    else
+        sum /= div;
+
+    // adjust each pixel
+    for (x = 0; x < h; x++) {
+        dstp[x * stride + column] *= sum;
     }
 }
 
@@ -119,8 +198,12 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
+        if (d->ignore_mask)
+            vsapi->requestFrameFilter(n, d->ignore_mask, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *ignore_mask = NULL;
+        const unsigned char *imaskp = NULL;
 
         VSFrame *dst = vsapi->copyFrame(src, core);
 
@@ -129,25 +212,48 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
         int h = vsapi->getFrameHeight(src, d->plane);
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
-        if (d->top != 0) {
-            for (int row = d->top - 1; row > -1; --row)
-                processRow(row, w, h, stride, dstp, d);
-        }
-        if (d->bottom != 0) {
-            for (int row = h - d->bottom; row < h; ++row)
-                processRow(row, w, h, stride, dstp, d);
-        }
-        if (d->left != 0) {
-            for (int column = d->left - 1; column > -1; --column)
-                processColumn(column, w, h, stride, dstp, d);
-        }
-        if (d->right != 0) {
-            for (int column = w - d->right; column < w; ++column)
-                processColumn(column, w, h, stride, dstp, d);
+        if (d->ignore_mask) {
+            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
+            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
+
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowMasked(row, w, h, stride, dstp, imaskp, d);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowMasked(row, w, h, stride, dstp, imaskp, d);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnMasked(column, w, h, stride, dstp, imaskp, d);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnMasked(column, w, h, stride, dstp, imaskp, d);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRow(row, w, h, stride, dstp, d);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRow(row, w, h, stride, dstp, d);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumn(column, w, h, stride, dstp, d);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumn(column, w, h, stride, dstp, d);
+            }
         }
 
 
         vsapi->freeFrame(src);
+        vsapi->freeFrame(ignore_mask);
 
         return dst;
     }
@@ -158,6 +264,7 @@ static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, v
 static void VS_CC fixBrightnessFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     FixBrightnessData *d = (FixBrightnessData *)instanceData;
     vsapi->freeNode(d->node);
+    vsapi->freeNode(d->ignore_mask);
     free(d);
 }
 
@@ -175,14 +282,13 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    d.lower = (float)vsapi->mapGetFloat(in, "lower", 0, &err);
+    d.ignore_mask = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
     if (err)
-        d.lower = 0.f;
-
-    d.upper = (float)vsapi->mapGetFloat(in, "upper", 0, &err);
-    if (err)
-        d.upper = 1.f;
-
+        d.ignore_mask = NULL;
+    else {
+        vsapi->freeNode(d.ignore_mask);
+    }
+    
     d.thrlo = (float)vsapi->mapGetFloat(in, "thrlo", 0, &err);
     if (err)
         d.thrlo = 0.1;
@@ -198,6 +304,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     else if (d.top > vi->height / 2) {
         vsapi->mapSetError(out, "FixBrightness: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -208,6 +315,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     else if (d.bottom > vi->height / 2) {
         vsapi->mapSetError(out, "FixBrightness: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -218,6 +326,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     else if (d.left > vi->width / 2) {
         vsapi->mapSetError(out, "FixBrightness: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -228,6 +337,7 @@ static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userDat
     else if (d.right > vi->width / 2) {
         vsapi->mapSetError(out, "FixBrightness: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -287,6 +397,7 @@ static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) 
         for (i = 0; i < w; i++) {
             dstp[i] *= c1;
         }
+    }
 
     free(cur);
     free(ref);
@@ -319,11 +430,9 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
 
     if (!status && isfinite(c1)) {
-        int j;
         // adjust each pixel
         for (i = 0; i < h; i++) {
-            j = i * stride;
-            dstp[j] *= c1;
+            dstp[i * stride] *= c1;
         }
     }
 
@@ -562,7 +671,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;thrlo:float:opt;thrhi:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
+    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;thrlo:float:opt;thrhi:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
     vspapi->registerFunction("Balance", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;mode:int:opt;", "clip:vnode;", linearRegressionCreate, NULL, plugin);
 }
 
