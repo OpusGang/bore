@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <math.h>
 #include <stdlib.h>
 #include <vapoursynth/VapourSynth4.h>
 #include <vapoursynth/VSHelper4.h>
@@ -273,11 +274,13 @@ static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) 
     const double *const_cur = cur;
     const double *const_ref = ref;
 
-    gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
+    int status = gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
 
-    // adjust each pixel
-    for (i = 0; i < w; i++) {
-        dstp[i] *= c1;
+    if (!status && isfinite(c1)) {
+        // adjust each pixel
+        for (i = 0; i < w; i++) {
+            dstp[i] *= c1;
+        }
     }
 
     free(cur);
@@ -308,13 +311,15 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     const double *const_cur = cur;
     const double *const_ref = ref;
 
-    gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
+    int status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
 
-    int j;
-    // adjust each pixel
-    for (i = 0; i < h; i++) {
-        j = i * stride + column;
-        dstp[j] *= c1;
+    if (!status && isfinite(c1)) {
+        int j;
+        // adjust each pixel
+        for (i = 0; i < h; i++) {
+            j = i * stride;
+            dstp[j] *= c1;
+        }
     }
 
     free(cur);
@@ -344,12 +349,20 @@ static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, 
     double chisq;
     gsl_matrix *cov = gsl_matrix_alloc(3, 3);
     gsl_vector *b = gsl_vector_alloc(3);
-    gsl_multifit_linear(x, y, b, cov, &chisq, ws);
+    int status = gsl_multifit_linear(x, y, b, cov, &chisq, ws);
 
-    // adjust each pixel
-    for (i = 0; i < w; i++) {
-        dstp[i] = gsl_vector_get(b, 0) * dstp1[i] + gsl_vector_get(b, 1) * dstp2[i] + gsl_vector_get(b, 2) * dstp3[i];
+    if (!status) {
+        // adjust each pixel
+        for (i = 0; i < w; i++) {
+            dstp[i] = gsl_vector_get(b, 0) * dstp1[i] + gsl_vector_get(b, 1) * dstp2[i] + gsl_vector_get(b, 2) * dstp3[i];
+        }
     }
+
+    gsl_vector_free(b);
+    gsl_matrix_free(cov);
+    gsl_multifit_linear_free(ws);
+    gsl_matrix_free(x);
+    gsl_vector_free(y);
 }
 
 static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
@@ -372,13 +385,21 @@ static void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float *
     double chisq;
     gsl_matrix *cov = gsl_matrix_alloc(3, 3);
     gsl_vector *b = gsl_vector_alloc(3);
-    gsl_multifit_linear(x, y, b, cov, &chisq, ws);
+    int status = gsl_multifit_linear(x, y, b, cov, &chisq, ws);
 
-    // adjust each pixel
-    for (i = 0; i < h; i++) {
-        j = i * stride + column;
-        dstp[j] = gsl_vector_get(b, 0) * dstp1[j] + gsl_vector_get(b, 1) * dstp2[j] + gsl_vector_get(b, 2) * dstp3[j];
+    if (!status) {
+        // adjust each pixel
+        for (i = 0; i < h; i++) {
+            j = i * stride + column;
+            dstp[j] = gsl_vector_get(b, 0) * dstp1[j] + gsl_vector_get(b, 1) * dstp2[j] + gsl_vector_get(b, 2) * dstp3[j];
+        }
     }
+
+    gsl_vector_free(b);
+    gsl_matrix_free(cov);
+    gsl_multifit_linear_free(ws);
+    gsl_matrix_free(x);
+    gsl_vector_free(y);
 }
 
 static const VSFrame *VS_CC linearRegressionGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
