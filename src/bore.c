@@ -111,7 +111,9 @@ static void processRowMasked(int row, int w, int h, ptrdiff_t stride, float *dst
 
     // adjust each pixel
     for (x = 0; x < w; x++) {
-        dstp[x] *= sum;
+        if (imaskp[x] < 128 && imaskp[sign * stride + x] < 128) {
+            dstp[x] *= sum;
+        }
     }
 }
 
@@ -189,7 +191,9 @@ static void processColumnMasked(int column, int w, int h, ptrdiff_t stride, floa
 
     // adjust each pixel
     for (x = 0; x < h; x++) {
-        dstp[x * stride + column] *= sum;
+        if (imaskp[x * stride + column] < 128 && imaskp[x * stride + column + sign] < 128) {
+            dstp[x * stride + column] *= sum;
+        }
     }
 }
 
