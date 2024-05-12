@@ -5,13 +5,12 @@ This is a bbmod-style border deringer, which works by multiplying every pixel by
 ## Usage
 
 ```
-core.bore.FixBrightness(clip clip, int top=0, int bottom=0, int left=0, int right=0, float lower=0.0, float upper=1.0, float thrlo=0.1, float thrhi=8.0, int step=1, int plane=0)
+core.bore.FixBrightness(clip clip, int top=0, int bottom=0, int left=0, int right=0, clip ignore_mask=None, float thrlo=0.1, float thrhi=8.0, int step=1, int plane=0)
 ```
 
 * `clip`: 32-bit float clip.
 * `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
-* `lower = 0`: Lower limit of range, this allows excluding pixels.
-* `upper = 1`: Upper limit of range, this allows excluding pixels.
+* `ignore_mask = None`: Ignore mask, needs to be 8-bit. Anything below 128 will be ignored during adjustment calculation.
 * `thrlo = 0.1`: Lower limit of adjustment. Any quotient below this will be ignored.
 * `thrhi = 8.0`: Upper limit of adjustment. Any quotient above this will be ignored.
 * `step = 1`: Speed up processing ever so slightly by lowering the number of pixels used to find the adjustment. Might be an unnecessary parameter.
@@ -19,7 +18,10 @@ core.bore.FixBrightness(clip clip, int top=0, int bottom=0, int left=0, int righ
 
 # Balance
 
-This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html#multi-parameter-regression) with all three planes of the reference line as input parameters to find a proper adjustment. This is more robust and can better deal with dirty lines created in different color spaces, but is slower and can yield worse results than FixBrightness if there's no dependency among planes.
+This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html) to find a proper adjustment. 
+
+In simple (0) `mode`, it functions similarly to `FixBrightness`, using simple linear regression instead of a simple mean. This is more robust than `FixBrightness`, although a bit slower.
+In multiple (1) `mode`, it uses multiple linear regression with all three planes as input parameters, which may help with ringing that was added in a different color space. This should be considered a last resort effort. 
 
 ## Requirements
 * [GSL](https://www.gnu.org/software/gsl/)
@@ -27,14 +29,13 @@ This approach to border deringing uses [linear least squares](https://www.gnu.or
 ## Usage
 
 ```
-core.bore.Balance(clip clip, int top=0, int bottom=0, int left=0, int right=0, float upper=1.0, float lower=0.0, int plane=0)
+core.bore.Balance(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0, int mode=0)
 ```
 
-* `clip`: 32-bit float clip with three planes without subsampling, e.g. `YUV444PS`.
+* `clip`: 32-bit float clip.
 * `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
-* `upper = 1`: Upper limit of range, this allows excluding pixels from being adjusted.
-* `lower = 0`: Lower limit of range, this allows excluding pixels from being adjusted.
 * `plane = 0`: Plane to adjust.
+* `mode = 0`: Linear regression mode, 0 for simple and 1 for multiple linear regression using all three planes as parameters (requires no subsampling).
 
 # Compilation
 
