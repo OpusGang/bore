@@ -35,7 +35,7 @@ core.bore.Balance(clip clip, int top=0, int bottom=0, int left=0, int right=0, i
 * `clip`: 32-bit float clip.
 * `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
 * `plane = 0`: Plane to adjust.
-* `mode = 0`: Linear regression mode, 0 for simple and 1 for multiple linear regression using all three planes as parameters (requires no subsampling).
+* `mode = 0`: Linear regression mode, 0 for simple and 1 for multiple linear regression using all three planes as parameters (requires no subsampling). Mode 2 is a debugging mode for simple linear regression that attaches the following frame properties: BalanceAdjustment, BalanceCovariance, BalanceSumSquares. Note that the values are in order of operation, i.e. top -> bottom -> left -> right with values for the innermost lines first.
 
 # Compilation
 

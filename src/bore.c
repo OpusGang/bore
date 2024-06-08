@@ -451,6 +451,79 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     free(cur);
     free(ref);
 }
+static void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi) {
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    int i;
+
+    cur = malloc(sizeof(double) * w);
+    ref = malloc(sizeof(double) * w);
+
+    dstp += row * stride;
+    for (i = 0; i < w; i++) {
+        cur[i] = dstp[i];
+        ref[i] = dstp[sign * stride + i];
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
+    int status = gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
+
+    /* if (!status || isfinite(c1)) { */
+    /*     c1 = 0; */
+    /* } */
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+
+    free(cur);
+    free(ref);
+}
+
+static void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi) {
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    int i;
+
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
+
+    dstp += column;
+    for (i = 0; i < h; i++) {
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
+    int status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
+
+    /* if (!status || isfinite(c1)) { */
+    /*     c1 = 0; */
+    /* } */
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+
+    free(cur);
+    free(ref);
+}
 
 static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
     int i;
@@ -563,7 +636,7 @@ static const VSFrame *VS_CC linearRegressionGetFrame(int n, int activationReason
                 for (int column = w - d->right; column < w; ++column)
                     processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
             }
-        } else {
+        } else if (d->mode == 1) {
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
                     processRowSLR(row, w, h, stride, dstp);
@@ -579,6 +652,23 @@ static const VSFrame *VS_CC linearRegressionGetFrame(int n, int activationReason
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
                     processColumnSLR(column, w, h, stride, dstp);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    debugRowSLR(row, w, h, stride, dstp, dst, vsapi);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    debugRowSLR(row, w, h, stride, dstp, dst, vsapi);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    debugColumnSLR(column, w, h, stride, dstp, dst, vsapi);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    debugColumnSLR(column, w, h, stride, dstp, dst, vsapi);
             }
         }
 
@@ -655,8 +745,8 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (err)
         d.mode = 0;
     
-    else if (d.mode > 1 || d.mode < 0) {
-        vsapi->mapSetError(out, "Balance: mode must be either 0 (simple) or 1 (multiple)");
+    else if (d.mode > 2 || d.mode < 0) {
+        vsapi->mapSetError(out, "Balance: mode must be either 0 (simple), 1 (multiple), or 2 (simple debug)");
         vsapi->freeNode(d.node);
         return;
     }
