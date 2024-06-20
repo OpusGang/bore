@@ -481,12 +481,12 @@ static void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, VS
 
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
 
-    /* if (!status || isfinite(c1)) { */
-    /*     c1 = 0; */
-    /* } */
+    if (!status || isfinite(c1)) {
+        c1 = 0;
+    }
     vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
-    /* vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend); */
-    /* vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend); */
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
 
     free(cur);
     free(ref);
@@ -661,8 +661,8 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
     double cov11, sumsq;
 
     double *cur, *ref;
-    cur = malloc(sizeof(double) * ref_line_size);
-    ref = malloc(sizeof(double) * ref_line_size);
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
 
     dstp += column;
     for (i = 0; i < h; i++) {
@@ -731,7 +731,7 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
 
         for (j = start; j < stop; j++) {
             k = j - start;
-            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((dstp[j] - dstp[i]) * (dstp[j] - dstp[i])) / (sigmaR * sigmaR));
+            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((dstp[sign * stride + j] - dstp[i]) * (dstp[sign * stride + j] - dstp[i])) / (sigmaR * sigmaR));
         }
 
         status = gsl_fit_wmul(const_cur, 1, weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
@@ -761,14 +761,15 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
     double cov11, sumsq;
 
     double *cur, *ref;
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
 
     dstp += column;
     for (i = 0; i < h; i++) {
-        cur[i] = dstp[i];
-        ref[i] = dstp[sign + i];
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
     }
+    
     for (i = 0; i < h; i++) {
         start = i - ref_line_size;
         stop = i + ref_line_size;
@@ -782,9 +783,10 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
         
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
+
         for (j = start; j < stop; j++) {
             k = j - start;
-            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((dstp[j] - dstp[i]) * (dstp[j] - dstp[i])) / (sigmaR * sigmaR));
+            weights[k] = 1.0;//exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((dstp[sign + stride * j] - dstp[i * stride]) * (dstp[sign + stride * j] - dstp[i * stride])) / (sigmaR * sigmaR));
         }
 
         status = gsl_fit_wmul(const_cur, 1, weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
@@ -1021,7 +1023,7 @@ static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData,
         d.top = 0;
 
     else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: top must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlane: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1031,7 +1033,7 @@ static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData,
         d.bottom = 0;
 
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: bottom must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlane: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1041,7 +1043,7 @@ static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData,
         d.left = 0;
 
     else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: left must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlane: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1051,7 +1053,7 @@ static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData,
         d.right = 0;
 
     else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: right must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlane: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1061,7 +1063,7 @@ static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData,
         d.plane = 0;
 
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "Balance: only constant format single float input");
+        vsapi->mapSetError(out, "SinglePlane: only constant format single float input");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1086,7 +1088,7 @@ static void VS_CC multiPlaneCreate(const VSMap *in, VSMap *out, void *userData, 
         d.top = 0;
 
     else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: top must be in [0, height / 2]");
+        vsapi->mapSetError(out, "MultiPlane: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1096,7 +1098,7 @@ static void VS_CC multiPlaneCreate(const VSMap *in, VSMap *out, void *userData, 
         d.bottom = 0;
 
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: bottom must be in [0, height / 2]");
+        vsapi->mapSetError(out, "MultiPlane: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1106,7 +1108,7 @@ static void VS_CC multiPlaneCreate(const VSMap *in, VSMap *out, void *userData, 
         d.left = 0;
 
     else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: left must be in [0, width / 2]");
+        vsapi->mapSetError(out, "MultiPlane: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1116,7 +1118,7 @@ static void VS_CC multiPlaneCreate(const VSMap *in, VSMap *out, void *userData, 
         d.right = 0;
 
     else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: right must be in [0, width / 2]");
+        vsapi->mapSetError(out, "MultiPlane: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1126,12 +1128,12 @@ static void VS_CC multiPlaneCreate(const VSMap *in, VSMap *out, void *userData, 
         d.plane = 0;
 
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "Balance: only constant format single float input");
+        vsapi->mapSetError(out, "MultiPlane: only constant format single float input");
         vsapi->freeNode(d.node);
         return;
     }
     if (vi->format.subSamplingH > 0 || vi->format.subSamplingW > 0 || vi->format.numPlanes != 3) {
-        vsapi->mapSetError(out, "Balance: mode 1 (multiple) requires three planes with no subsampling");
+        vsapi->mapSetError(out, "MultiPlane: three planes without subsampling are required");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1156,7 +1158,7 @@ static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *us
         d.top = 0;
 
     else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: top must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlaneLimited: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1166,7 +1168,7 @@ static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *us
         d.bottom = 0;
 
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: bottom must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlaneLimited: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1176,7 +1178,7 @@ static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *us
         d.left = 0;
 
     else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: left must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlaneLimited: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1186,7 +1188,7 @@ static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *us
         d.right = 0;
 
     else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: right must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlaneLimited: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1196,7 +1198,7 @@ static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *us
         d.plane = 0;
 
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "Balance: only constant format single float input");
+        vsapi->mapSetError(out, "SinglePlaneLimited: only constant format single float input");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1225,7 +1227,7 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
         d.top = 0;
 
     else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: top must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlaneWeighted: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1235,7 +1237,7 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
         d.bottom = 0;
 
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: bottom must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlaneWeighted: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1245,7 +1247,7 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
         d.left = 0;
 
     else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: left must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlaneWeighted: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1255,7 +1257,7 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
         d.right = 0;
 
     else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: right must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlaneWeighted: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1265,7 +1267,7 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
         d.plane = 0;
 
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "Balance: only constant format single float input");
+        vsapi->mapSetError(out, "SinglePlaneWeighted: only constant format single float input");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1302,7 +1304,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
         d.top = 0;
 
     else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: top must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlaneDebug: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1312,7 +1314,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
         d.bottom = 0;
 
     else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "Balance: bottom must be in [0, height / 2]");
+        vsapi->mapSetError(out, "SinglePlaneDebug: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1322,7 +1324,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
         d.left = 0;
 
     else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: left must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlaneDebug: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1332,7 +1334,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
         d.right = 0;
 
     else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "Balance: right must be in [0, width / 2]");
+        vsapi->mapSetError(out, "SinglePlaneDebug: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         return;
     }
@@ -1342,7 +1344,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
         d.plane = 0;
 
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "Balance: only constant format single float input");
+        vsapi->mapSetError(out, "SinglePlaneDebug: only constant format single float input");
         vsapi->freeNode(d.node);
         return;
     }
