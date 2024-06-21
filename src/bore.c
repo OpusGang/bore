@@ -698,7 +698,6 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
 
     int i;
     int j;
-    int k;
     int start, stop;
     int status;
 
@@ -729,9 +728,8 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
 
-        for (j = start; j < stop; j++) {
-            k = j - start;
-            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((dstp[sign * stride + j] - dstp[i]) * (dstp[sign * stride + j] - dstp[i])) / (sigmaR * sigmaR));
+        for (j = 0; j < stop - start; j++) {
+            weights[j] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i]) * (const_cur[j] - dstp[i])) / (sigmaR * sigmaR));
         }
 
         status = gsl_fit_wmul(const_cur, 1, weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
@@ -753,7 +751,6 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
 
     int i;
     int j;
-    int k;
     int start, stop;
     int status;
 
@@ -784,9 +781,8 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
 
-        for (j = start; j < stop; j++) {
-            k = j - start;
-            weights[k] = 1.0;//exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((dstp[sign + stride * j] - dstp[i * stride]) * (dstp[sign + stride * j] - dstp[i * stride])) / (sigmaR * sigmaR));
+        for (j = 0; j < stop - start; j++) {
+            weights[j] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i * stride]) * (const_cur[j] - dstp[i * stride])) / (sigmaR * sigmaR));
         }
 
         status = gsl_fit_wmul(const_cur, 1, weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
@@ -1274,11 +1270,11 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
 
     d.sigmaS = vsapi->mapGetFloat(in, "sigmaS", 0, &err);
     if (err)
-        d.sigmaS = 3.0;
+        d.sigmaS = 250.0;
 
     d.sigmaR = vsapi->mapGetFloat(in, "sigmaR", 0, &err);
     if (err)
-        d.sigmaR = 0.5;
+        d.sigmaR = 1.0;
 
     d.ref_line_size = vsapi->mapGetInt(in, "ref_line_size", 0, &err) / 2;
     if (err)

@@ -37,14 +37,14 @@ These are in order of operation, i.e. top, bottom, left, right, each from innerm
 core.bore.SinglePlane(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0)
 core.bore.MultiPlane(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0)
 core.bore.SinglePlaneLimited(clip clip, int top=0, int bottom=0, int left=0, int right=0, int ref_line_size=10, int plane=0)
-core.bore.SinglePlaneWeighted(clip clip, int top=0, int bottom=0, int left=0, int right=0, float sigmaS=3.0, float sigmaR=0.5, int ref_line_size=10, int plane=0)
+core.bore.SinglePlaneWeighted(clip clip, int top=0, int bottom=0, int left=0, int right=0, float sigmaS=250.0, float sigmaR=1.0, int ref_line_size=10, int plane=0)
 core.bore.SinglePlaneDebug(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0)
 ```
 
 * `clip`: 32-bit float clip.
 * `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
 * `plane = 0`: Plane to adjust.
-* `sigmaS = 3.0, sigmaR = 0.5`: SinglePlaneWeighted's smoothing parameters, same as a bilateral filter's.
+* `sigmaS = 250, sigmaR = 1`: SinglePlaneWeighted's smoothing parameters, same as a bilateral filter's.
 * `ref_line_size = 10`: Reference line size for SinglePlaneLimited/Weighted. The actual size is `2 * ref_line_size + 1`.
 
 # Compilation
