@@ -379,6 +379,7 @@ typedef struct {
     int ref_line_size;
     double sigmaS;
     double sigmaR;
+    double sigmaD;
 } LinearRegressionData;
 
 static void processRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp) {
@@ -691,13 +692,14 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
     free(ref);
 }
 
-static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR) {
+static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD) {
     int sign = 1;
     if (row > h / 2)
         sign = -1;
 
     int i;
     int j;
+    int k;
     int start, stop;
     int status;
 
@@ -728,11 +730,14 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
 
-        for (j = 0; j < stop - start; j++) {
-            weights[j] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i]) * (const_cur[j] - dstp[i])) / (sigmaR * sigmaR));
+        for (k = 0; k < stop - start; k++) {
+            j = k + start;
+            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i]) * (const_cur[j] - dstp[i])) / (sigmaR * sigmaR) - (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) * (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD));
         }
 
-        status = gsl_fit_wmul(const_cur, 1, weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        const double *const_weights = weights;
+
+        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
@@ -744,13 +749,14 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
     free(ref);
 }
 
-static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR) {
+static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD) {
     int sign = 1;
     if (column > w / 2)
         sign = -1;
 
     int i;
     int j;
+    int k;
     int start, stop;
     int status;
 
@@ -781,11 +787,14 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
 
-        for (j = 0; j < stop - start; j++) {
-            weights[j] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i * stride]) * (const_cur[j] - dstp[i * stride])) / (sigmaR * sigmaR));
+        for (k = 0; k < stop - start; k++) {
+            j = k + start;
+            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i * stride]) * (const_cur[j] - dstp[i * stride])) / (sigmaR * sigmaR) - (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) * (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD));
         }
 
-        status = gsl_fit_wmul(const_cur, 1, weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        const double *const_weights = weights;
+
+        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
@@ -937,19 +946,19 @@ static const VSFrame *VS_CC singlePlaneWeightedGetFrame(int n, int activationRea
 
         if (d->top != 0) {
             for (int row = d->top - 1; row > -1; --row)
-                processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR);
+                processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
         }
         if (d->bottom != 0) {
             for (int row = h - d->bottom; row < h; ++row)
-                processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR);
+                processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
         }
         if (d->left != 0) {
             for (int column = d->left - 1; column > -1; --column)
-                processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR);
+                processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
         }
         if (d->right != 0) {
             for (int column = w - d->right; column < w; ++column)
-                processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR);
+                processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
         }
 
         vsapi->freeFrame(src);
@@ -1201,7 +1210,7 @@ static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *us
 
     d.ref_line_size = vsapi->mapGetInt(in, "ref_line_size", 0, &err) / 2;
     if (err)
-        d.ref_line_size = 5;
+        d.ref_line_size = 100;
 
     data = (LinearRegressionData *)malloc(sizeof(d));
     *data = d;
@@ -1270,15 +1279,19 @@ static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *u
 
     d.sigmaS = vsapi->mapGetFloat(in, "sigmaS", 0, &err);
     if (err)
-        d.sigmaS = 250.0;
+        d.sigmaS = 25.0;
 
     d.sigmaR = vsapi->mapGetFloat(in, "sigmaR", 0, &err);
     if (err)
-        d.sigmaR = 1.0;
+        d.sigmaR = 2.5;
+
+    d.sigmaD = vsapi->mapGetFloat(in, "sigmaD", 0, &err);
+    if (err)
+        d.sigmaD = 0.25;
 
     d.ref_line_size = vsapi->mapGetInt(in, "ref_line_size", 0, &err) / 2;
     if (err)
-        d.ref_line_size = 5;
+        d.ref_line_size = 100;
 
     data = (LinearRegressionData *)malloc(sizeof(d));
     *data = d;
@@ -1358,7 +1371,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
     vspapi->registerFunction("SinglePlane", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneCreate, NULL, plugin);
     vspapi->registerFunction("MultiPlane", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;", "clip:vnode;", multiPlaneCreate, NULL, plugin);
     vspapi->registerFunction("SinglePlaneLimited", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneLimitedCreate, NULL, plugin);
-    vspapi->registerFunction("SinglePlaneWeighted", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;sigmaS:float:opt;sigmaR:float:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneWeightedCreate, NULL, plugin);
+    vspapi->registerFunction("SinglePlaneWeighted", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;sigmaS:float:opt;sigmaR:float:opt;sigmaD:float:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneWeightedCreate, NULL, plugin);
     vspapi->registerFunction("SinglePlaneDebug", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneDebugCreate, NULL, plugin);
 }
 
