@@ -1,23 +1,3 @@
-# FixBrightness
-
-This is a bbmod-style border deringer, which works by multiplying every pixel by the average of dividing each pixel in a line by its nearest pixel in the next line. Unlike bbmod, this doesn't attempt to localize the result and just assumes the same adjustment to be made for the entire row. It's effectively an automated FixBrightness/rektlvls, hence the name.
-
-## Usage
-
-```
-core.bore.FixBrightness(clip clip, int top=0, int bottom=0, int left=0, int right=0, clip ignore_mask=None, float thrlo=0.1, float thrhi=8.0, int step=1, int plane=0)
-```
-
-* `clip`: 32-bit float clip.
-* `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
-* `ignore_mask = None`: Ignore mask, needs to be 8-bit. Anything below 128 will be ignored during adjustment calculation.
-* `thrlo = 0.1`: Lower limit of adjustment. Any quotient below this will be ignored.
-* `thrhi = 8.0`: Upper limit of adjustment. Any quotient above this will be ignored.
-* `step = 1`: Speed up processing ever so slightly by lowering the number of pixels used to find the adjustment. Might be an unnecessary parameter.
-* `plane = 0`: Plane to process.
-
-# Regression modes
-
 This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html) to find a proper adjustment. 
 
 SinglePlane does simple linear regression between each line and the first clean line. MultiPlane does the same with multiple linear regression using all three planes. SinglePlaneLimited does this for each pixel individually using only the nearest pixels defined by ref_line_size. SinglePlaneWeighted is SinglePlaneLimited with bilateral filter style weighting for distance and difference. SinglePlaneDebug is the same as SinglePlane, but saves adjustment values to frame props instead of applying them.
@@ -36,17 +16,18 @@ These are in order of operation, i.e. top, bottom, left, right, each from innerm
 ## Usage
 
 ```
-core.bore.SinglePlane(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0)
-core.bore.MultiPlane(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0)
-core.bore.SinglePlaneLimited(clip clip, int top=0, int bottom=0, int left=0, int right=0, int ref_line_size=100, int plane=0)
-core.bore.SinglePlaneWeighted(clip clip, int top=0, int bottom=0, int left=0, int right=0, float sigmaS=25.0, float sigmaR=2.5, float sigmaD=0.25, int ref_line_size=100, int plane=0)
-core.bore.SinglePlaneDebug(clip clip, int top=0, int bottom=0, int left=0, int right=0, int plane=0)
+core.bore.SinglePlane(clip clip, int top=0, int bottom=0, int left=0, int right=0, clip ignore_mask=None, int plane=0)
+core.bore.MultiPlane(clip clip, int top=0, int bottom=0, int left=0, int right=0, clip ignore_mask=None, int plane=0)
+core.bore.SinglePlaneLimited(clip clip, int top=0, int bottom=0, int left=0, int right=0, clip ignore_mask=None, int ref_line_size=100, int plane=0)
+core.bore.SinglePlaneWeighted(clip clip, int top=0, int bottom=0, int left=0, int right=0, clip ignore_mask=None, float sigmaS=50.0, float sigmaR=0.5, float sigmaD=1.5, int ref_line_size=100, int plane=0)
+core.bore.SinglePlaneDebug(clip clip, int top=0, int bottom=0, int left=0, clip ignore_mask=None, int right=0, int plane=0)
 ```
 
 * `clip`: 32-bit float clip.
 * `top = 0`, `bottom = 0`, `left = 0`, `right = 0`: number of lines from each border to adjust.
+* `ignore_mask = None`: 8-bit gray mask with pixels to avoid when calculating the adjustment.
 * `plane = 0`: Plane to adjust.
-* `sigmaS = 25, sigmaR = 2.5, sigmaD = 0.25`: SinglePlaneWeighted's smoothing parameters, same as a bilateral filter's, sigmaR is difference between pixels in same line, sigmaD is difference between adjustments compared to current pixel and its neighbor.
+* `sigmaS = 50, sigmaR = 0.5, sigmaD = 1.5`: SinglePlaneWeighted's smoothing parameters, same as a bilateral filter's, sigmaR is difference between pixels in same line, sigmaD is difference between adjustments compared to current pixel and its neighbor.
 * `ref_line_size = 100`: Reference line size for SinglePlaneLimited/Weighted. The actual size is `2 * ref_line_size + 1`.
 
 # Compilation

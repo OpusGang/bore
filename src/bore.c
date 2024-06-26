@@ -21,361 +21,22 @@
 #include <gsl/gsl_fit.h>
 #include <gsl/gsl_multifit.h>
 
+typedef enum LinRegMode {
+    LINREG_MODE_SINGLE = 1,
+    LINREG_MODE_MULTI = 2,
+    LINREG_MODE_SINGLE_LIMITED = 3,
+    LINREG_MODE_SINGLE_WEIGHTED = 4,
+    LINREG_MODE_SINGLE_DEBUG = 5
+} LinRegMode;
+
 typedef struct {
     VSNode *node;
     VSNode *ignore_mask;
-    float thrlo;
-    float thrhi;
     int plane;
     int top;
     int bottom;
     int left;
     int right;
-    int step;
-} FixBrightnessData;
-
-static void processRow(int row, int w, int h, ptrdiff_t stride, float *dstp, FixBrightnessData *d) {
-    int x;
-    float cur;
-    float ref;
-
-    int sign = 1;
-    if (row > h / 2)
-        sign = -1;
-
-    float tmp;
-    float sum = 0.f;
-    int div = 0;
-
-    // go through row and get current and reference
-    dstp += stride * row;
-    for (x = 0; x < w; x += d->step) {
-        cur = (dstp[x]);
-        ref = (dstp[sign * stride + x]);
-        tmp = ref / cur;
-        // add to sum if quotient is within thresholds and there's no sign change
-        if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
-            sum += tmp;
-            div += 1;
-        }
-    }
-
-    // division by zero => neutral
-    if (div == 0)
-        return;
-    // otherwise just mean of the quotient of the two rows
-    else
-        sum /= div;
-
-    // adjust each pixel
-    for (x = 0; x < w; x++) {
-        dstp[x] *= sum;
-    }
-}
-
-static void processRowMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, FixBrightnessData *d) {
-    int x;
-    float cur;
-    float ref;
-
-    int sign = 1;
-    if (row > h / 2)
-        sign = -1;
-
-    float tmp;
-    float sum = 0.f;
-    int div = 0;
-
-    // go through row and get current and reference
-    dstp += stride * row;
-    imaskp += stride * row;
-    for (x = 0; x < w; x += d->step) {
-        if (imaskp[x] < 128 && imaskp[sign * stride + x] < 128) {
-            cur = (dstp[x]);
-            ref = (dstp[sign * stride + x]);
-            tmp = ref / cur;
-            // add to sum if quotient is within thresholds and there's no sign change
-            if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
-                sum += tmp;
-                div += 1;
-            }
-        }
-    }
-
-    // division by zero => neutral
-    if (div == 0)
-        return;
-    // otherwise just mean of the quotient of the two rows
-    else
-        sum /= div;
-
-    // adjust each pixel
-    for (x = 0; x < w; x++) {
-        if (imaskp[x] < 128 && imaskp[sign * stride + x] < 128) {
-            dstp[x] *= sum;
-        }
-    }
-}
-
-static void processColumn(int column, int w, int h, ptrdiff_t stride, float *dstp, FixBrightnessData *d) {
-    int x;
-    float cur;
-    float ref;
-
-    int sign = 1;
-    if (column > w / 2)
-        sign = -1;
-
-    float tmp;
-    float sum = 0.f;
-    int div = 0;
-
-    // go through column and get current and reference
-    for (x = 0; x < h; x += d->step) {
-        cur = (dstp[x * stride + column]);
-        ref = (dstp[x * stride + column + sign]);
-        tmp = ref / cur;
-        // add to sum if quotient is within thresholds and there's no sign change
-        if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
-            sum += tmp;
-            div += 1;
-        }
-    }
-
-    // division by zero => neutral
-    if (div == 0)
-        return;
-    // otherwise just mean of the quotient of the two columns
-    else
-        sum /= div;
-
-    // adjust each pixel
-    for (x = 0; x < h; x++) {
-        dstp[x * stride + column] *= sum;
-    }
-}
-
-static void processColumnMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, FixBrightnessData *d) {
-    int x;
-    float cur;
-    float ref;
-
-    int sign = 1;
-    if (column > w / 2)
-        sign = -1;
-
-    float tmp;
-    float sum = 0.f;
-    int div = 0;
-
-    // go through column and get current and reference
-    for (x = 0; x < h; x += d->step) {
-        if (imaskp[x * stride + column] < 128 && imaskp[x * stride + column + sign] < 128) {
-            cur = (dstp[x * stride + column]);
-            ref = (dstp[x * stride + column + sign]);
-            tmp = ref / cur;
-            // add to sum if quotient is within thresholds and there's no sign change
-            if ((tmp > d->thrlo) && (tmp < d->thrhi) && ((cur > 0 && ref > 0) || (cur < 0 && ref < 0))) {
-                sum += tmp;
-                div += 1;
-            }
-        }
-    }
-
-    // division by zero => neutral
-    if (div == 0)
-        return;
-    // otherwise just mean of the quotient of the two columns
-    else
-        sum /= div;
-
-    // adjust each pixel
-    for (x = 0; x < h; x++) {
-        if (imaskp[x * stride + column] < 128 && imaskp[x * stride + column + sign] < 128) {
-            dstp[x * stride + column] *= sum;
-        }
-    }
-}
-
-static const VSFrame *VS_CC fixBrightnessGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    FixBrightnessData *d = (FixBrightnessData *)instanceData;
-
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-        if (d->ignore_mask)
-            vsapi->requestFrameFilter(n, d->ignore_mask, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrame *ignore_mask = NULL;
-        const unsigned char *imaskp = NULL;
-
-        VSFrame *dst = vsapi->copyFrame(src, core);
-
-        ptrdiff_t stride = vsapi->getStride(dst, d->plane) / 4;
-        int w = vsapi->getFrameWidth(src, d->plane);
-        int h = vsapi->getFrameHeight(src, d->plane);
-        float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
-
-        if (d->ignore_mask) {
-            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
-            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
-
-            if (d->top != 0) {
-                for (int row = d->top - 1; row > -1; --row)
-                    processRowMasked(row, w, h, stride, dstp, imaskp, d);
-            }
-            if (d->bottom != 0) {
-                for (int row = h - d->bottom; row < h; ++row)
-                    processRowMasked(row, w, h, stride, dstp, imaskp, d);
-            }
-            if (d->left != 0) {
-                for (int column = d->left - 1; column > -1; --column)
-                    processColumnMasked(column, w, h, stride, dstp, imaskp, d);
-            }
-            if (d->right != 0) {
-                for (int column = w - d->right; column < w; ++column)
-                    processColumnMasked(column, w, h, stride, dstp, imaskp, d);
-            }
-        } else {
-            if (d->top != 0) {
-                for (int row = d->top - 1; row > -1; --row)
-                    processRow(row, w, h, stride, dstp, d);
-            }
-            if (d->bottom != 0) {
-                for (int row = h - d->bottom; row < h; ++row)
-                    processRow(row, w, h, stride, dstp, d);
-            }
-            if (d->left != 0) {
-                for (int column = d->left - 1; column > -1; --column)
-                    processColumn(column, w, h, stride, dstp, d);
-            }
-            if (d->right != 0) {
-                for (int column = w - d->right; column < w; ++column)
-                    processColumn(column, w, h, stride, dstp, d);
-            }
-        }
-
-
-        vsapi->freeFrame(src);
-        vsapi->freeFrame(ignore_mask);
-
-        return dst;
-    }
-
-    return NULL;
-}
-
-static void VS_CC fixBrightnessFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    FixBrightnessData *d = (FixBrightnessData *)instanceData;
-    vsapi->freeNode(d->node);
-    vsapi->freeNode(d->ignore_mask);
-    free(d);
-}
-
-static void VS_CC fixBrightnessCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    FixBrightnessData d;
-    FixBrightnessData *data;
-    int err;
-
-    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "FixBrightness: only constant format single float input supported");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.ignore_mask = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
-    if (err)
-        d.ignore_mask = NULL;
-    else {
-        vsapi->freeNode(d.ignore_mask);
-    }
-    
-    d.thrlo = (float)vsapi->mapGetFloat(in, "thrlo", 0, &err);
-    if (err)
-        d.thrlo = 0.1;
-
-    d.thrhi = (float)vsapi->mapGetFloat(in, "thrhi", 0, &err);
-    if (err)
-        d.thrhi = 8.f;
-
-    d.thrlo = (float)vsapi->mapGetFloat(in, "thrlo", 0, &err);
-    if (err)
-        d.thrlo = 0.1;
-
-    d.thrhi = (float)vsapi->mapGetFloat(in, "thrhi", 0, &err);
-    if (err)
-        d.thrhi = 8.f;
-
-    d.top = vsapi->mapGetInt(in, "top", 0, &err);
-    if (err)
-        d.top = 0;
-
-    else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "FixBrightness: top must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
-        return;
-    }
-
-    d.bottom = vsapi->mapGetInt(in, "bottom", 0, &err);
-    if (err)
-        d.bottom = 0;
-
-    else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "FixBrightness: bottom must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
-        return;
-    }
-
-    d.left = vsapi->mapGetInt(in, "left", 0, &err);
-    if (err)
-        d.left = 0;
-
-    else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "FixBrightness: left must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
-        return;
-    }
-
-    d.right = vsapi->mapGetInt(in, "right", 0, &err);
-    if (err)
-        d.right = 0;
-
-    else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "FixBrightness: right must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
-        return;
-    }
-
-    d.step = vsapi->mapGetInt(in, "step", 0, &err);
-    if (err)
-        d.step = 1;
-
-    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
-    if (err)
-        d.plane = 0;
-
-    data = (FixBrightnessData *)malloc(sizeof(d));
-    *data = d;
-
-    VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "FixBrightness", vi, fixBrightnessGetFrame, fixBrightnessFree, fmParallel, deps, 1, data, core);
-}
-
-typedef struct {
-    VSNode *node;
-    int plane;
-    int top;
-    int bottom;
-    int left;
-    int right;
-    int mode;
     int ref_line_size;
     double sigmaS;
     double sigmaR;
@@ -444,6 +105,96 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     const double *const_ref = ref;
 
     int status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
+
+    if (!status && isfinite(c1)) {
+        // adjust each pixel
+        for (i = 0; i < h; i++) {
+            dstp[i * stride] *= c1;
+        }
+    }
+
+    free(cur);
+    free(ref);
+}
+static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    double *weights;
+    int i;
+
+    cur = malloc(sizeof(double) * w);
+    ref = malloc(sizeof(double) * w);
+    weights = malloc(sizeof(double) * w);
+
+    dstp += row * stride;
+    imaskp += row * stride;
+    for (i = 0; i < w; i++) {
+        cur[i] = dstp[i];
+        ref[i] = dstp[sign * stride + i];
+        if (imaskp[i] < 128 && imaskp[sign * stride + i] < 128)
+            weights[i] = 1.0;
+        else
+            weights[i] = 0.0;
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+    const double *const_weights = weights;
+
+    int status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
+
+    if (!status && isfinite(c1)) {
+        // adjust each pixel
+        for (i = 0; i < w; i++) {
+            dstp[i] *= c1;
+        }
+    }
+
+    free(cur);
+    free(ref);
+    free(weights);
+}
+
+static void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    double *weights;
+    int i;
+
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
+    weights = malloc(sizeof(double) * h);
+
+    imaskp += column;
+    dstp += column;
+    for (i = 0; i < h; i++) {
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
+        if (imaskp[i * stride] < 128 && imaskp[sign + stride * i] < 128)
+            weights[i] = 1.0;
+        else
+            weights[i] = 0.0;
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+    const double *const_weights = weights;
+
+    int status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
 
     if (!status && isfinite(c1)) {
         // adjust each pixel
@@ -528,6 +279,98 @@ static void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float *ds
 
     free(cur);
     free(ref);
+}
+
+static void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    double *weights;
+    int i;
+
+    cur = malloc(sizeof(double) * w);
+    ref = malloc(sizeof(double) * w);
+    weights = malloc(sizeof(double) * w);
+
+    dstp += row * stride;
+    imaskp += row * stride;
+    for (i = 0; i < w; i++) {
+        cur[i] = dstp[i];
+        ref[i] = dstp[sign * stride + i];
+        if (imaskp[i] < 128 && imaskp[sign * stride + i] < 128)
+            weights[i] = 1.0;
+        else
+            weights[i] = 0.0;
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+    const double *const_weights = weights;
+
+    int status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, w, &c1, &cov11, &sumsq);
+
+    if (!status || isfinite(c1)) {
+        c1 = 0;
+    }
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+
+    free(cur);
+    free(ref);
+    free(weights);
+}
+
+static void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    double *cur, *ref;
+    double *weights;
+    int i;
+
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
+    weights = malloc(sizeof(double) * h);
+
+    imaskp += column;
+    dstp += column;
+    for (i = 0; i < h; i++) {
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
+        if (imaskp[i * stride] < 128 && imaskp[sign + stride * i] < 128)
+            weights[i] = 1.0;
+        else
+            weights[i] = 0.0;
+    }
+
+    double cov11, sumsq;
+
+    double c1;
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+    const double *const_weights = weights;
+
+    int status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, h, &c1, &cov11, &sumsq);
+
+    if (!status || isfinite(c1)) {
+        c1 = 0;
+    }
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+
+    free(cur);
+    free(ref);
+    free(weights);
 }
 
 static void processRowMLR(int row, int w, int h, ptrdiff_t stride, float *dstp, float *dstp1, float *dstp2, float *dstp3) {
@@ -630,7 +473,7 @@ static void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float *dst
 
     for (i = 0; i < w; i++) {
         start = i - ref_line_size;
-        stop = i + ref_line_size;
+        stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
         if (stop >= w)
@@ -673,7 +516,7 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
 
     for (i = 0; i < h; i++) {
         start = i - ref_line_size;
-        stop = i + ref_line_size;
+        stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
         if (stop >= h)
@@ -690,6 +533,116 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
 
     free(cur);
     free(ref);
+}
+
+static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    int i;
+    int start, stop;
+    int status;
+
+    double c1;
+    double cov11, sumsq;
+
+    double *cur, *ref;
+    double *weights;
+
+    cur = malloc(sizeof(double) * w);
+    ref = malloc(sizeof(double) * w);
+    weights = malloc(sizeof(double) * w);
+
+    dstp += row * stride;
+    imaskp += row * stride;
+    for (i = 0; i < w; i++) {
+        cur[i] = dstp[i];
+        ref[i] = dstp[sign * stride + i];
+        if (imaskp[i] < 128 && imaskp[sign * stride + i] < 128)
+            weights[i] = 1.0;
+        else
+            weights[i] = 0.0;
+    }
+
+    const double *const_weights = weights;
+
+    for (i = 0; i < w; i++) {
+        start = i - ref_line_size;
+        stop = i + ref_line_size + 1;
+        if (start < 0)
+            start = 0;
+        if (stop >= w)
+            stop = w - 1;
+
+        const double *const_cur = cur + start;
+        const double *const_ref = ref + start;
+
+        status = gsl_fit_wmul(const_cur, 1, const_weights + start, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+
+        if (!status && isfinite(c1)) 
+            dstp[i] *= c1;
+    }
+
+    free(cur);
+    free(ref);
+    free(weights);
+}
+
+static void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    int i;
+    int start, stop;
+    int status;
+
+    double c1;
+    double cov11, sumsq;
+
+    double *cur, *ref;
+    double *weights;
+
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
+    weights = malloc(sizeof(double) * h);
+
+    imaskp += column;
+    dstp += column;
+    for (i = 0; i < h; i++) {
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
+        if (imaskp[i * stride] < 128 && imaskp[sign + stride * i] < 128)
+            weights[i] = 1.0;
+        else
+            weights[i] = 1.0;
+    }
+
+    const double *const_weights = weights;
+
+    for (i = 0; i < h; i++) {
+        start = i - ref_line_size;
+        stop = i + ref_line_size + 1;
+        if (start < 0)
+            start = 0;
+        if (stop >= h)
+            stop = h - 1;
+
+        const double *const_cur = cur + start;
+        const double *const_ref = ref + start;
+        const double *const_weights = weights + start;
+
+        status = gsl_fit_wmul(const_cur, 1, const_weights + start, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        /* status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq); */
+
+        if (!status && isfinite(c1)) 
+            dstp[i * stride] *= c1;
+    }
+
+    free(cur);
+    free(ref);
+    free(weights);
 }
 
 static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD) {
@@ -716,9 +669,13 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
         ref[i] = dstp[sign * stride + i];
     }
 
+    double w_s;
+    double w_c;
+    double w_d;
+
     for (i = 0; i < w; i++) {
         start = i - ref_line_size;
-        stop = i + ref_line_size;
+        stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
         if (stop >= w)
@@ -732,7 +689,16 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
 
         for (k = 0; k < stop - start; k++) {
             j = k + start;
-            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i]) * (const_cur[j] - dstp[i])) / (sigmaR * sigmaR) - (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) * (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD));
+            w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
+            w_c = exp(-((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size]) / (sigmaR * sigmaR)));
+            w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) * (const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) / (sigmaD * sigmaD));
+            weights[k] = w_s * w_c;
+            /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size])) / (sigmaR * sigmaR) - (const_ref[k] / const_cur[k] - const_cur[ref_line_size] / dstp[sign * stride + i]) * (const_ref[k] / const_cur[k] - const_cur[ref_line_size] / dstp[sign * stride + i]) / (sigmaD * sigmaD)); */
+            /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size])) / (sigmaR * sigmaR)); */
+            /* if (i == 1370) { */
+            /*     dstp[j] = w_d;//(dstp[j] - dstp[i]) * (dstp[j] - dstp[i]); */
+            /*     dstp[i] = 1.0; */
+            /* } */
         }
 
         const double *const_weights = weights;
@@ -775,7 +741,7 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
     
     for (i = 0; i < h; i++) {
         start = i - ref_line_size;
-        stop = i + ref_line_size;
+        stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
         if (stop >= h)
@@ -806,13 +772,157 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
     free(ref);
 }
 
+
+static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (row > h / 2)
+        sign = -1;
+
+    int i;
+    int j;
+    int k;
+    int start, stop;
+    int status;
+
+    double c1;
+    double cov11, sumsq;
+
+    double *cur, *ref;
+    cur = malloc(sizeof(double) * w);
+    ref = malloc(sizeof(double) * w);
+
+    dstp += row * stride;
+    for (i = 0; i < w; i++) {
+        cur[i] = dstp[i];
+        ref[i] = dstp[sign * stride + i];
+    }
+
+    double w_s;
+    double w_c;
+    double w_d;
+
+    for (i = 0; i < w; i++) {
+        start = i - ref_line_size;
+        stop = i + ref_line_size + 1;
+        if (start < 0)
+            start = 0;
+        if (stop >= w)
+            stop = w - 1;
+
+        const double *const_cur = cur + start;
+        const double *const_ref = ref + start;
+
+        double *weights;
+        weights = malloc(sizeof(double) * (stop - start));
+
+        for (k = 0; k < stop - start; k++) {
+            j = k + start;
+            if (imaskp[j] < 128 && imaskp[sign * stride + j] < 128) {
+                w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
+                w_c = exp(-((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size]) / (sigmaR * sigmaR)));
+                w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) * (const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) / (sigmaD * sigmaD));
+                weights[k] = w_s * w_c * w_d;
+                /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size])) / (sigmaR * sigmaR) - (const_ref[k] / const_cur[k] - const_cur[ref_line_size] / dstp[sign * stride + i]) * (const_ref[k] / const_cur[k] - const_cur[ref_line_size] / dstp[sign * stride + i]) / (sigmaD * sigmaD)); */
+                /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size])) / (sigmaR * sigmaR)); */
+            } else
+                weights[k] = 0.0;
+            /* if (i == 1370) { */
+            /*     dstp[j] = w_d;//(dstp[j] - dstp[i]) * (dstp[j] - dstp[i]); */
+            /*     dstp[i] = 1.0; */
+            /* } */
+        }
+
+        const double *const_weights = weights;
+
+        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+
+        if (!status && isfinite(c1)) 
+            dstp[i] *= c1;
+
+        free(weights);
+    }
+
+    free(cur);
+    free(ref);
+}
+
+static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char * restrict imaskp) {
+    int sign = 1;
+    if (column > w / 2)
+        sign = -1;
+
+    int i;
+    int j;
+    int k;
+    int start, stop;
+    int status;
+
+    double c1;
+    double cov11, sumsq;
+
+    double *cur, *ref;
+    cur = malloc(sizeof(double) * h);
+    ref = malloc(sizeof(double) * h);
+
+    dstp += column;
+    for (i = 0; i < h; i++) {
+        cur[i] = dstp[i * stride];
+        ref[i] = dstp[sign + stride * i];
+    }
+
+    double w_s, w_c, w_d;
+    
+    for (i = 0; i < h; i++) {
+        start = i - ref_line_size;
+        stop = i + ref_line_size + 1;
+        if (start < 0)
+            start = 0;
+        if (stop >= h)
+            stop = h - 1;
+
+        const double *const_cur = cur + start;
+        const double *const_ref = ref + start;
+        
+        double *weights;
+        weights = malloc(sizeof(double) * (stop - start));
+
+        for (k = 0; k < stop - start; k++) {
+            j = k + start;
+            if (imaskp[j] < 128 && imaskp[sign + stride * j] < 128) {
+                w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
+                w_c = exp(-((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size]) / (sigmaR * sigmaR)));
+                w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) * (const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) / (sigmaD * sigmaD));
+                weights[k] = w_s * w_c * w_d;
+                /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i * stride]) * (const_cur[j] - dstp[i * stride])) / (sigmaR * sigmaR) - (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) * (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD)); */
+            } else
+                weights[k] = 0.0;
+        }
+
+        const double *const_weights = weights;
+
+        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+
+        if (!status && isfinite(c1)) 
+            dstp[i * stride] *= c1;
+
+        free(weights);
+    }
+
+    free(cur);
+    free(ref);
+}
+
 static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     LinearRegressionData *d = (LinearRegressionData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
+        if (d->ignore_mask)
+            vsapi->requestFrameFilter(n, d->ignore_mask, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *ignore_mask = NULL;
+        const unsigned char *imaskp = NULL;
 
         VSFrame *dst = vsapi->copyFrame(src, core);
 
@@ -821,21 +931,42 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         int h = vsapi->getFrameHeight(src, d->plane);
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
-        if (d->top != 0) {
-            for (int row = d->top - 1; row > -1; --row)
-                processRowSLR(row, w, h, stride, dstp);
-        }
-        if (d->bottom != 0) {
-            for (int row = h - d->bottom; row < h; ++row)
-                processRowSLR(row, w, h, stride, dstp);
-        }
-        if (d->left != 0) {
-            for (int column = d->left - 1; column > -1; --column)
-                processColumnSLR(column, w, h, stride, dstp);
-        }
-        if (d->right != 0) {
-            for (int column = w - d->right; column < w; ++column)
-                processColumnSLR(column, w, h, stride, dstp);
+        if (d->ignore_mask) {
+            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
+            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowSLRMasked(row, w, h, stride, dstp, imaskp);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowSLRMasked(row, w, h, stride, dstp, imaskp);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnSLRMasked(column, w, h, stride, dstp, imaskp);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnSLRMasked(column, w, h, stride, dstp, imaskp);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowSLR(row, w, h, stride, dstp);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowSLR(row, w, h, stride, dstp);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnSLR(column, w, h, stride, dstp);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnSLR(column, w, h, stride, dstp);
+            }
         }
 
         vsapi->freeFrame(src);
@@ -894,8 +1025,12 @@ static const VSFrame *VS_CC singlePlaneLimitedGetFrame(int n, int activationReas
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
+        if (d->ignore_mask)
+            vsapi->requestFrameFilter(n, d->ignore_mask, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *ignore_mask = NULL;
+        const unsigned char *imaskp = NULL;
 
         VSFrame *dst = vsapi->copyFrame(src, core);
 
@@ -904,21 +1039,42 @@ static const VSFrame *VS_CC singlePlaneLimitedGetFrame(int n, int activationReas
         int h = vsapi->getFrameHeight(src, d->plane);
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
-        if (d->top != 0) {
-            for (int row = d->top - 1; row > -1; --row)
-                processRowSLRRef(row, w, h, stride, dstp, d->ref_line_size);
-        }
-        if (d->bottom != 0) {
-            for (int row = h - d->bottom; row < h; ++row)
-                processRowSLRRef(row, w, h, stride, dstp, d->ref_line_size);
-        }
-        if (d->left != 0) {
-            for (int column = d->left - 1; column > -1; --column)
-                processColumnSLRRef(column, w, h, stride, dstp, d->ref_line_size);
-        }
-        if (d->right != 0) {
-            for (int column = w - d->right; column < w; ++column)
-                processColumnSLRRef(column, w, h, stride, dstp, d->ref_line_size);
+        if (d->ignore_mask) {
+            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
+            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowSLRRefMasked(row, w, h, stride, dstp, d->ref_line_size, imaskp);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowSLRRefMasked(row, w, h, stride, dstp, d->ref_line_size, imaskp);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowSLRRef(row, w, h, stride, dstp, d->ref_line_size);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowSLRRef(row, w, h, stride, dstp, d->ref_line_size);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnSLRRef(column, w, h, stride, dstp, d->ref_line_size);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnSLRRef(column, w, h, stride, dstp, d->ref_line_size);
+            }
         }
 
         vsapi->freeFrame(src);
@@ -934,8 +1090,12 @@ static const VSFrame *VS_CC singlePlaneWeightedGetFrame(int n, int activationRea
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
+        if (d->ignore_mask)
+            vsapi->requestFrameFilter(n, d->ignore_mask, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *ignore_mask = NULL;
+        const unsigned char *imaskp = NULL;
 
         VSFrame *dst = vsapi->copyFrame(src, core);
 
@@ -944,21 +1104,42 @@ static const VSFrame *VS_CC singlePlaneWeightedGetFrame(int n, int activationRea
         int h = vsapi->getFrameHeight(src, d->plane);
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
-        if (d->top != 0) {
-            for (int row = d->top - 1; row > -1; --row)
-                processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
-        }
-        if (d->bottom != 0) {
-            for (int row = h - d->bottom; row < h; ++row)
-                processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
-        }
-        if (d->left != 0) {
-            for (int column = d->left - 1; column > -1; --column)
-                processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
-        }
-        if (d->right != 0) {
-            for (int column = w - d->right; column < w; ++column)
-                processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
+        if (d->ignore_mask) {
+            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
+            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowWSLRMasked(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowWSLRMasked(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    processRowWSLR(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    processColumnWSLR(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD);
+            }
         }
 
         vsapi->freeFrame(src);
@@ -974,8 +1155,12 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
+        if (d->ignore_mask)
+            vsapi->requestFrameFilter(n, d->ignore_mask, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrame *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrame *ignore_mask = NULL;
+        const unsigned char *imaskp = NULL;
 
         VSFrame *dst = vsapi->copyFrame(src, core);
 
@@ -984,21 +1169,42 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
         int h = vsapi->getFrameHeight(src, d->plane);
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
-        if (d->top != 0) {
-            for (int row = d->top - 1; row > -1; --row)
-                debugRowSLR(row, w, h, stride, dstp, dst, vsapi);
-        }
-        if (d->bottom != 0) {
-            for (int row = h - d->bottom; row < h; ++row)
-                debugRowSLR(row, w, h, stride, dstp, dst, vsapi);
-        }
-        if (d->left != 0) {
-            for (int column = d->left - 1; column > -1; --column)
-                debugColumnSLR(column, w, h, stride, dstp, dst, vsapi);
-        }
-        if (d->right != 0) {
-            for (int column = w - d->right; column < w; ++column)
-                debugColumnSLR(column, w, h, stride, dstp, dst, vsapi);
+        if (d->ignore_mask) {
+            ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
+            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    debugRowSLRMasked(row, w, h, stride, dstp, dst, vsapi, imaskp);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    debugRowSLRMasked(row, w, h, stride, dstp, dst, vsapi, imaskp);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp);
+            }
+        } else {
+            if (d->top != 0) {
+                for (int row = d->top - 1; row > -1; --row)
+                    debugRowSLR(row, w, h, stride, dstp, dst, vsapi);
+            }
+            if (d->bottom != 0) {
+                for (int row = h - d->bottom; row < h; ++row)
+                    debugRowSLR(row, w, h, stride, dstp, dst, vsapi);
+            }
+            if (d->left != 0) {
+                for (int column = d->left - 1; column > -1; --column)
+                    debugColumnSLR(column, w, h, stride, dstp, dst, vsapi);
+            }
+            if (d->right != 0) {
+                for (int column = w - d->right; column < w; ++column)
+                    debugColumnSLR(column, w, h, stride, dstp, dst, vsapi);
+            }
         }
         
         vsapi->freeFrame(src);
@@ -1015,7 +1221,8 @@ static void VS_CC linearRegressionFree(void *instanceData, VSCore *core, const V
     free(d);
 }
 
-static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    LinRegMode mode = (enum LinRegMode) userData;
     LinearRegressionData d;
     LinearRegressionData *data;
     int err;
@@ -1023,290 +1230,12 @@ static void VS_CC singlePlaneCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
 
-    d.top = vsapi->mapGetInt(in, "top", 0, &err);
+    d.ignore_mask = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
     if (err)
-        d.top = 0;
-
-    else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "SinglePlane: top must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
+        d.ignore_mask = NULL;
+    else {
+        vsapi->freeNode(d.ignore_mask);
     }
-
-    d.bottom = vsapi->mapGetInt(in, "bottom", 0, &err);
-    if (err)
-        d.bottom = 0;
-
-    else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "SinglePlane: bottom must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.left = vsapi->mapGetInt(in, "left", 0, &err);
-    if (err)
-        d.left = 0;
-
-    else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "SinglePlane: left must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.right = vsapi->mapGetInt(in, "right", 0, &err);
-    if (err)
-        d.right = 0;
-
-    else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "SinglePlane: right must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
-    if (err)
-        d.plane = 0;
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "SinglePlane: only constant format single float input");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    data = (LinearRegressionData *)malloc(sizeof(d));
-    *data = d;
-
-    VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SinglePlane", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
-}
-
-static void VS_CC multiPlaneCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    LinearRegressionData d;
-    LinearRegressionData *data;
-    int err;
-
-    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
-
-    d.top = vsapi->mapGetInt(in, "top", 0, &err);
-    if (err)
-        d.top = 0;
-
-    else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "MultiPlane: top must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.bottom = vsapi->mapGetInt(in, "bottom", 0, &err);
-    if (err)
-        d.bottom = 0;
-
-    else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "MultiPlane: bottom must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.left = vsapi->mapGetInt(in, "left", 0, &err);
-    if (err)
-        d.left = 0;
-
-    else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "MultiPlane: left must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.right = vsapi->mapGetInt(in, "right", 0, &err);
-    if (err)
-        d.right = 0;
-
-    else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "MultiPlane: right must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
-    if (err)
-        d.plane = 0;
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "MultiPlane: only constant format single float input");
-        vsapi->freeNode(d.node);
-        return;
-    }
-    if (vi->format.subSamplingH > 0 || vi->format.subSamplingW > 0 || vi->format.numPlanes != 3) {
-        vsapi->mapSetError(out, "MultiPlane: three planes without subsampling are required");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    data = (LinearRegressionData *)malloc(sizeof(d));
-    *data = d;
-
-    VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "MultiPlane", vi, multiPlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
-}
-
-static void VS_CC singlePlaneLimitedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    LinearRegressionData d;
-    LinearRegressionData *data;
-    int err;
-
-    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
-
-    d.top = vsapi->mapGetInt(in, "top", 0, &err);
-    if (err)
-        d.top = 0;
-
-    else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "SinglePlaneLimited: top must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.bottom = vsapi->mapGetInt(in, "bottom", 0, &err);
-    if (err)
-        d.bottom = 0;
-
-    else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "SinglePlaneLimited: bottom must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.left = vsapi->mapGetInt(in, "left", 0, &err);
-    if (err)
-        d.left = 0;
-
-    else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "SinglePlaneLimited: left must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.right = vsapi->mapGetInt(in, "right", 0, &err);
-    if (err)
-        d.right = 0;
-
-    else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "SinglePlaneLimited: right must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
-    if (err)
-        d.plane = 0;
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "SinglePlaneLimited: only constant format single float input");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.ref_line_size = vsapi->mapGetInt(in, "ref_line_size", 0, &err) / 2;
-    if (err)
-        d.ref_line_size = 100;
-
-    data = (LinearRegressionData *)malloc(sizeof(d));
-    *data = d;
-
-    VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SinglePlaneLimited", vi, singlePlaneLimitedGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
-}
-
-static void VS_CC singlePlaneWeightedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    LinearRegressionData d;
-    LinearRegressionData *data;
-    int err;
-
-    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
-
-    d.top = vsapi->mapGetInt(in, "top", 0, &err);
-    if (err)
-        d.top = 0;
-
-    else if (d.top > vi->height / 2) {
-        vsapi->mapSetError(out, "SinglePlaneWeighted: top must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.bottom = vsapi->mapGetInt(in, "bottom", 0, &err);
-    if (err)
-        d.bottom = 0;
-
-    else if (d.bottom > vi->height / 2) {
-        vsapi->mapSetError(out, "SinglePlaneWeighted: bottom must be in [0, height / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.left = vsapi->mapGetInt(in, "left", 0, &err);
-    if (err)
-        d.left = 0;
-
-    else if (d.left > vi->width / 2) {
-        vsapi->mapSetError(out, "SinglePlaneWeighted: left must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.right = vsapi->mapGetInt(in, "right", 0, &err);
-    if (err)
-        d.right = 0;
-
-    else if (d.right > vi->width / 2) {
-        vsapi->mapSetError(out, "SinglePlaneWeighted: right must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
-    if (err)
-        d.plane = 0;
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "SinglePlaneWeighted: only constant format single float input");
-        vsapi->freeNode(d.node);
-        return;
-    }
-
-    d.sigmaS = vsapi->mapGetFloat(in, "sigmaS", 0, &err);
-    if (err)
-        d.sigmaS = 25.0;
-
-    d.sigmaR = vsapi->mapGetFloat(in, "sigmaR", 0, &err);
-    if (err)
-        d.sigmaR = 2.5;
-
-    d.sigmaD = vsapi->mapGetFloat(in, "sigmaD", 0, &err);
-    if (err)
-        d.sigmaD = 0.25;
-
-    d.ref_line_size = vsapi->mapGetInt(in, "ref_line_size", 0, &err) / 2;
-    if (err)
-        d.ref_line_size = 100;
-
-    data = (LinearRegressionData *)malloc(sizeof(d));
-    *data = d;
-
-    VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SinglePlaneWeighted", vi, singlePlaneWeightedGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
-}
-
-static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    LinearRegressionData d;
-    LinearRegressionData *data;
-    int err;
-
-    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
-    const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
 
     d.top = vsapi->mapGetInt(in, "top", 0, &err);
     if (err)
@@ -1315,6 +1244,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
     else if (d.top > vi->height / 2) {
         vsapi->mapSetError(out, "SinglePlaneDebug: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -1325,6 +1255,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
     else if (d.bottom > vi->height / 2) {
         vsapi->mapSetError(out, "SinglePlaneDebug: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -1335,6 +1266,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
     else if (d.left > vi->width / 2) {
         vsapi->mapSetError(out, "SinglePlaneDebug: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -1345,6 +1277,7 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
     else if (d.right > vi->width / 2) {
         vsapi->mapSetError(out, "SinglePlaneDebug: right must be in [0, width / 2]");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -1355,23 +1288,52 @@ static void VS_CC singlePlaneDebugCreate(const VSMap *in, VSMap *out, void *user
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
         vsapi->mapSetError(out, "SinglePlaneDebug: only constant format single float input");
         vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
         return;
+    }
+
+    if (mode == LINREG_MODE_SINGLE_LIMITED || mode == LINREG_MODE_SINGLE_WEIGHTED) {
+        d.ref_line_size = vsapi->mapGetInt(in, "ref_line_size", 0, &err);
+        if (err)
+            d.ref_line_size = 100;
+    }
+
+    if (mode == LINREG_MODE_SINGLE_WEIGHTED) {
+        d.sigmaS = vsapi->mapGetFloat(in, "sigmaS", 0, &err);
+        if (err)
+            d.sigmaS = 50.0;
+
+        d.sigmaR = vsapi->mapGetFloat(in, "sigmaR", 0, &err);
+        if (err)
+            d.sigmaR = 0.5;
+
+        d.sigmaD = vsapi->mapGetFloat(in, "sigmaD", 0, &err);
+        if (err)
+            d.sigmaD = 1.5;
     }
 
     data = (LinearRegressionData *)malloc(sizeof(d));
     *data = d;
 
     VSFilterDependency deps[] = {{d.node, rpStrictSpatial}};
-    vsapi->createVideoFilter(out, "SinglePlaneDebug", vi, singlePlaneDebugGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
+    if (mode == LINREG_MODE_SINGLE)
+        vsapi->createVideoFilter(out, "SinglePlane", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
+    else if (mode == LINREG_MODE_MULTI)
+        vsapi->createVideoFilter(out, "MultiPlane", vi, multiPlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
+    else if (mode == LINREG_MODE_SINGLE_LIMITED)
+        vsapi->createVideoFilter(out, "SinglePlaneLimited", vi, singlePlaneLimitedGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
+    else if (mode == LINREG_MODE_SINGLE_WEIGHTED)
+        vsapi->createVideoFilter(out, "SinglePlaneWeighted", vi, singlePlaneWeightedGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
+    else // (mode == LINREG_MODE_SINGLE_DEBUG)
+        vsapi->createVideoFilter(out, "SinglePlaneDebug", vi, singlePlaneDebugGetFrame, linearRegressionFree, fmParallel, deps, 1, data, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
-    vspapi->registerFunction("FixBrightness", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;thrlo:float:opt;thrhi:float:opt;step:int:opt;plane:int:opt;", "clip:vnode;", fixBrightnessCreate, NULL, plugin);
-    vspapi->registerFunction("SinglePlane", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneCreate, NULL, plugin);
-    vspapi->registerFunction("MultiPlane", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;", "clip:vnode;", multiPlaneCreate, NULL, plugin);
-    vspapi->registerFunction("SinglePlaneLimited", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneLimitedCreate, NULL, plugin);
-    vspapi->registerFunction("SinglePlaneWeighted", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;sigmaS:float:opt;sigmaR:float:opt;sigmaD:float:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneWeightedCreate, NULL, plugin);
-    vspapi->registerFunction("SinglePlaneDebug", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;plane:int:opt;", "clip:vnode;", singlePlaneDebugCreate, NULL, plugin);
+    vspapi->registerFunction("SinglePlane", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_SINGLE), plugin);
+    vspapi->registerFunction("MultiPlane", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_MULTI), plugin);
+    vspapi->registerFunction("SinglePlaneLimited", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_SINGLE_LIMITED), plugin);
+    vspapi->registerFunction("SinglePlaneWeighted", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;sigmaS:float:opt;sigmaR:float:opt;sigmaD:float:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_SINGLE_WEIGHTED), plugin);
+    vspapi->registerFunction("SinglePlaneDebug", "clip:vnode;top:int:opt;bottom:int:opt;left:int:opt;right:int:opt;ignore_mask:vnode:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_SINGLE_DEBUG), plugin);
 }
 
