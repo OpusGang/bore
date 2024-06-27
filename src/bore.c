@@ -821,7 +821,7 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
                 w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
                 w_c = exp(-((const_ref[k] - const_ref[ref_line_size]) * (const_ref[k] - const_ref[ref_line_size]) / (sigmaR * sigmaR)));
                 w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) * (const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) / (sigmaD * sigmaD));
-                weights[k] = w_s * w_c;
+                weights[k] = w_s * w_c * w_d;
             } else
                 weights[k] = 0.0;
             /* if (i == 1370) { */
@@ -897,7 +897,7 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
                 w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
                 w_c = exp(-((ref_ref - ref_cur) * (ref_ref - ref_cur) + (cur_ref - cur_cur) * (cur_ref - cur_cur)) / (sigmaR * sigmaR));
                 w_d = exp(-(ref_ref / cur_ref - ref_cur / cur_cur) * (ref_ref / cur_ref - ref_cur / cur_cur) / (sigmaD * sigmaD));
-                weights[k] = w_c;
+                weights[k] = w_s * w_c * w_d;
             } else
                 weights[k] = 0.0;
             /* if (i == 909) { */
