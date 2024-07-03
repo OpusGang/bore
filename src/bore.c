@@ -824,7 +824,7 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
 
         const double *const_weights = weights;
 
-        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, const_weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
@@ -903,7 +903,7 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
 
         const double *const_weights = weights;
 
-        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, const_weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
