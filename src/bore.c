@@ -237,9 +237,9 @@ static void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, VS
     if (!status || isfinite(c1)) {
         c1 = 0;
     }
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreSumSquares", sumsq, maAppend);
 
     free(cur);
     free(ref);
@@ -274,9 +274,9 @@ static void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float *ds
     if (!status || isfinite(c1)) {
         c1 = 0;
     }
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreSumSquares", sumsq, maAppend);
 
     free(cur);
     free(ref);
@@ -319,9 +319,9 @@ static void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *ds
     if (!status || isfinite(c1)) {
         c1 = 0;
     }
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreSumSquares", sumsq, maAppend);
 
     free(cur);
     free(ref);
@@ -365,9 +365,9 @@ static void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, flo
     if (!status || isfinite(c1)) {
         c1 = 0;
     }
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceAdjustment", c1, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceCovariance", cov11, maAppend);
-    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BalanceSumSquares", sumsq, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreAdjustment", c1, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreCovariance", cov11, maAppend);
+    vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "BoreSumSquares", sumsq, maAppend);
 
     free(cur);
     free(ref);
