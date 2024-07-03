@@ -139,7 +139,7 @@ static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *
         else
             weights[i] = 0.0;
     }
-
+    
     double cov11, sumsq;
 
     double c1;
@@ -156,7 +156,7 @@ static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *
             dstp[i] *= c1;
         }
     }
-
+    
     free(cur);
     free(ref);
     free(weights);
@@ -202,9 +202,10 @@ static void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, f
             dstp[i * stride] *= c1;
         }
     }
-
+    
     free(cur);
     free(ref);
+    free(weights);
 }
 
 static void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi) {
@@ -940,8 +941,8 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         float *dstp = (float *) vsapi->getWritePtr(dst, d->plane);
 
         if (d->ignore_mask) {
-            ptrdiff_t imaskstride = vsapi->getStride(ignore_mask, 0);
             ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
+            ptrdiff_t imaskstride = vsapi->getStride(ignore_mask, 0);
             imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
