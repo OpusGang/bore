@@ -472,6 +472,9 @@ static void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float *dst
         ref[i] = dstp[sign * stride + i];
     }
 
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
     for (i = 0; i < w; i++) {
         start = i - ref_line_size;
         stop = i + ref_line_size + 1;
@@ -480,10 +483,7 @@ static void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float *dst
         if (stop >= w)
             stop = w - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-
-        status = gsl_fit_mul(const_cur, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_mul(const_cur + start, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
@@ -515,6 +515,9 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
         ref[i] = dstp[sign + stride * i];
     }
 
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
     for (i = 0; i < h; i++) {
         start = i - ref_line_size;
         stop = i + ref_line_size + 1;
@@ -523,10 +526,7 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
         if (stop >= h)
             stop = h - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-
-        status = gsl_fit_mul(const_cur, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_mul(const_cur + start, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
@@ -566,6 +566,8 @@ static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, floa
             weights[i] = 0.0;
     }
 
+    const double *const_cur = cur;
+    const double *const_ref = ref;
     const double *const_weights = weights;
 
     for (i = 0; i < w; i++) {
@@ -576,10 +578,7 @@ static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, floa
         if (stop >= w)
             stop = w - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-
-        status = gsl_fit_wmul(const_cur, 1, const_weights + start, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, const_weights + start, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
@@ -620,6 +619,8 @@ static void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride
             weights[i] = 1.0;
     }
 
+    const double *const_cur = cur;
+    const double *const_ref = ref;
     const double *const_weights = weights;
 
     for (i = 0; i < h; i++) {
@@ -630,12 +631,7 @@ static void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride
         if (stop >= h)
             stop = h - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-        const double *const_weights = weights + start;
-
-        status = gsl_fit_wmul(const_cur, 1, const_weights + start, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
-        /* status = gsl_fit_mul(const_cur, 1, const_ref, 1, h, &c1, &cov11, &sumsq); */
+        status = gsl_fit_wmul(const_cur + start, 1, const_weights + start, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
@@ -652,7 +648,6 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
         sign = -1;
 
     int i;
-    int j;
     int k;
     int start, stop;
     int status;
@@ -673,6 +668,8 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
     double w_s;
     double w_c;
     double w_d;
+    const double *const_cur = cur;
+    const double *const_ref = ref;
 
     for (i = 0; i < w; i++) {
         start = i - ref_line_size;
@@ -682,18 +679,14 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
         if (stop >= w)
             stop = w - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
 
-        for (k = 0; k < stop - start; k++) {
-            j = k + start;
-            w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-            w_c = exp(-((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size]) / (sigmaR * sigmaR)));
-            w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) * (const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) / (sigmaD * sigmaD));
-            weights[k] = w_s * w_c;
+        for (k = start; k < stop; k++) {
+            w_s = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS));
+            w_c = exp(-((const_cur[k] - const_cur[i]) * (const_cur[k] - const_cur[i]) / (sigmaR * sigmaR)));
+            w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[i] / const_cur[i]) * (const_ref[k] / const_cur[k] - const_ref[i] / const_cur[i]) / (sigmaD * sigmaD));
+            weights[k - start] = w_s * w_c * w_d;
             /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size])) / (sigmaR * sigmaR) - (const_ref[k] / const_cur[k] - const_cur[ref_line_size] / dstp[sign * stride + i]) * (const_ref[k] / const_cur[k] - const_cur[ref_line_size] / dstp[sign * stride + i]) / (sigmaD * sigmaD)); */
             /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[k] - const_cur[ref_line_size]) * (const_cur[k] - const_cur[ref_line_size])) / (sigmaR * sigmaR)); */
             /* if (i == 1370) { */
@@ -704,7 +697,7 @@ static void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float *dstp,
 
         const double *const_weights = weights;
 
-        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, const_weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
@@ -722,7 +715,6 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
         sign = -1;
 
     int i;
-    int j;
     int k;
     int start, stop;
     int status;
@@ -740,6 +732,9 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
         ref[i] = dstp[sign + stride * i];
     }
     
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+
     for (i = 0; i < h; i++) {
         start = i - ref_line_size;
         stop = i + ref_line_size + 1;
@@ -747,21 +742,17 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
             start = 0;
         if (stop >= h)
             stop = h - 1;
-
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
         
         double *weights;
         weights = malloc(sizeof(double) * (stop - start));
 
-        for (k = 0; k < stop - start; k++) {
-            j = k + start;
-            weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((const_cur[j] - dstp[i * stride]) * (const_cur[j] - dstp[i * stride])) / (sigmaR * sigmaR) - (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) * (const_ref[j] / const_cur[j] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD));
+        for (k = start; k < stop; k++) {
+            weights[k - start] = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS) - ((const_cur[k] - dstp[i * stride]) * (const_cur[k] - dstp[i * stride])) / (sigmaR * sigmaR) - (const_ref[k] / const_cur[k] - dstp[i] / dstp[sign * stride + i]) * (const_ref[k] / const_cur[k] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD));
         }
 
         const double *const_weights = weights;
 
-        status = gsl_fit_wmul(const_cur, 1, const_weights, 1, const_ref, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, const_weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
@@ -793,6 +784,7 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
     ref = malloc(sizeof(double) * w);
 
     dstp += row * stride;
+    imaskp += row * imaskstride;
     for (i = 0; i < w; i++) {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
@@ -802,6 +794,11 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
     double w_c;
     double w_d;
 
+    const double *const_cur = cur;
+    const double *const_ref = ref;
+    double *weights;
+    weights = malloc(sizeof(double) * (2 * ref_line_size));
+
     for (i = 0; i < w; i++) {
         start = i - ref_line_size;
         stop = i + ref_line_size + 1;
@@ -810,18 +807,12 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
         if (stop >= w)
             stop = w - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-
-        double *weights;
-        weights = malloc(sizeof(double) * (stop - start));
-
         for (k = 0; k < stop - start; k++) {
             j = k + start;
             if (imaskp[j] < 128 && imaskp[sign * imaskstride + j] < 128) {
                 w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-                w_c = exp(-((const_ref[k] - const_ref[ref_line_size]) * (const_ref[k] - const_ref[ref_line_size]) / (sigmaR * sigmaR)));
-                w_d = exp(-(const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) * (const_ref[k] / const_cur[k] - const_ref[ref_line_size] / const_cur[ref_line_size]) / (sigmaD * sigmaD));
+                w_c = exp(-((const_ref[j] - const_ref[i]) * (const_ref[j] - const_ref[i]) / (sigmaR * sigmaR)));
+                w_d = exp(-(const_ref[j] / const_cur[j] - const_ref[i] / const_cur[i]) * (const_ref[j] / const_cur[j] - const_ref[i] / const_cur[i]) / (sigmaD * sigmaD));
                 weights[k] = w_s * w_c * w_d;
             } else
                 weights[k] = 0.0;
@@ -838,9 +829,9 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
 
-        free(weights);
     }
 
+    free(weights);
     free(cur);
     free(ref);
 }
@@ -862,6 +853,12 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
     double *cur, *ref;
     cur = malloc(sizeof(double) * h);
     ref = malloc(sizeof(double) * h);
+        
+    double *weights;
+    weights = malloc(sizeof(double) * (2 * ref_line_size));
+
+    const double *const_cur = cur;
+    const double *const_ref = ref;
 
     imaskp += column;
     dstp += column;
@@ -882,22 +879,19 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
         if (stop >= h)
             stop = h - 1;
 
-        const double *const_cur = cur + start;
-        const double *const_ref = ref + start;
-        
-        double *weights;
-        weights = malloc(sizeof(double) * (stop - start));
-
         for (k = 0; k < stop - start; k++) {
             j = k + start;
             if (imaskp[j * imaskstride] < 128 && imaskp[sign + imaskstride * j] < 128) {
-                cur_cur = const_cur[ref_line_size];
-                cur_ref = const_cur[k];
-                ref_cur = const_ref[ref_line_size];
-                ref_ref = const_ref[k];
+                /* cur_cur = const_cur[i]; */
+                /* cur_ref = const_cur[j]; */
+                /* ref_cur = const_ref[i]; */
+                /* ref_ref = const_ref[j]; */
+                /* w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS)); */
+                /* w_c = exp(-((ref_ref - ref_cur) * (ref_ref - ref_cur) + (cur_ref - cur_cur) * (cur_ref - cur_cur)) / (sigmaR * sigmaR)); */
+                /* w_d = exp(-(ref_ref / cur_ref - ref_cur / cur_cur) * (ref_ref / cur_ref - ref_cur / cur_cur) / (sigmaD * sigmaD)); */
                 w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-                w_c = exp(-((ref_ref - ref_cur) * (ref_ref - ref_cur) + (cur_ref - cur_cur) * (cur_ref - cur_cur)) / (sigmaR * sigmaR));
-                w_d = exp(-(ref_ref / cur_ref - ref_cur / cur_cur) * (ref_ref / cur_ref - ref_cur / cur_cur) / (sigmaD * sigmaD));
+                w_c = exp(-((const_ref[j] - const_ref[i]) * (const_ref[j] - const_ref[i]) / (sigmaR * sigmaR)));
+                w_d = exp(-(const_ref[j] / const_cur[j] - const_ref[i] / const_cur[i]) * (const_ref[j] / const_cur[j] - const_ref[i] / const_cur[i]) / (sigmaD * sigmaD));
                 weights[k] = w_s * w_c * w_d;
             } else
                 weights[k] = 0.0;
@@ -914,9 +908,9 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
 
-        free(weights);
     }
 
+    free(weights);
     free(cur);
     free(ref);
 }
