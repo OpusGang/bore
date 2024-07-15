@@ -116,7 +116,7 @@ static void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float *
     free(cur);
     free(ref);
 }
-static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -134,7 +134,7 @@ static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *
     for (i = 0; i < w; i++) {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
-        if (imaskp[i] < 128 && imaskp[sign * imaskstride + i] < 128)
+        if (imaskp[i] < 128 && imaskp[sign * mask_dist * imaskstride + i] < 128)
             weights[i] = 1.0;
         else
             weights[i] = 0.0;
@@ -162,7 +162,7 @@ static void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *
     free(weights);
 }
 
-static void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -180,7 +180,7 @@ static void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, f
     for (i = 0; i < h; i++) {
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
-        if (imaskp[i * imaskstride] < 128 && imaskp[sign + imaskstride * i] < 128)
+        if (imaskp[i * imaskstride] < 128 && imaskp[sign * mask_dist + imaskstride * i] < 128)
             weights[i] = 1.0;
         else
             weights[i] = 0.0;
@@ -282,7 +282,7 @@ static void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float *ds
     free(ref);
 }
 
-static void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -300,7 +300,7 @@ static void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *ds
     for (i = 0; i < w; i++) {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
-        if (imaskp[i] < 128 && imaskp[sign * imaskstride + i] < 128)
+        if (imaskp[i] < 128 && imaskp[sign * mask_dist * imaskstride + i] < 128)
             weights[i] = 1.0;
         else
             weights[i] = 0.0;
@@ -328,7 +328,7 @@ static void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float *ds
     free(weights);
 }
 
-static void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, VSFrame *dst, const VSAPI *vsapi, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -346,7 +346,7 @@ static void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, flo
     for (i = 0; i < h; i++) {
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
-        if (imaskp[i * imaskstride] < 128 && imaskp[sign + imaskstride * i] < 128)
+        if (imaskp[i * imaskstride] < 128 && imaskp[sign * mask_dist + imaskstride * i] < 128)
             weights[i] = 1.0;
         else
             weights[i] = 0.0;
@@ -536,7 +536,7 @@ static void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, floa
     free(ref);
 }
 
-static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -560,7 +560,7 @@ static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, floa
     for (i = 0; i < w; i++) {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
-        if (imaskp[i] < 128 && imaskp[sign * imaskstride + i] < 128)
+        if (imaskp[i] < 128 && imaskp[sign * mask_dist * imaskstride + i] < 128)
             weights[i] = 1.0;
         else
             weights[i] = 0.0;
@@ -589,7 +589,7 @@ static void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, floa
     free(weights);
 }
 
-static void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -613,7 +613,7 @@ static void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride
     for (i = 0; i < h; i++) {
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
-        if (imaskp[i * imaskstride] < 128 && imaskp[sign + imaskstride * i] < 128)
+        if (imaskp[i * imaskstride] < 128 && imaskp[sign * mask_dist + imaskstride * i] < 128)
             weights[i] = 1.0;
         else
             weights[i] = 1.0;
@@ -765,7 +765,7 @@ static void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float 
 }
 
 
-static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -798,6 +798,8 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
     const double *const_ref = ref;
     double *weights;
     weights = malloc(sizeof(double) * (2 * ref_line_size));
+
+    sign *= mask_dist;
 
     for (i = 0; i < w; i++) {
         start = i - ref_line_size;
@@ -836,7 +838,7 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
     free(ref);
 }
 
-static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char * restrict imaskp, ptrdiff_t imaskstride) {
+static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float *dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char * restrict imaskp, ptrdiff_t imaskstride, int mask_dist) {
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -871,6 +873,8 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
 
     float cur_cur, cur_ref, ref_ref, ref_cur;
     
+    sign *= mask_dist;
+
     for (i = 0; i < h; i++) {
         start = i - ref_line_size;
         stop = i + ref_line_size + 1;
@@ -895,9 +899,9 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
                 weights[k] = w_s * w_c * w_d;
             } else
                 weights[k] = 0.0;
-            /* if (i == 909) { */
+            /* if (i == 880) { */
             /*     dstp[j * stride] = weights[k]; */
-            /*     dstp[i * stride] = 1.0; */
+            /*     dstp[i * stride] = 0.5; */
             /* } */
         }
 
@@ -940,19 +944,19 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
             imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
-                    processRowSLRMasked(row, w, h, stride, dstp, imaskp, imaskstride);
+                    processRowSLRMasked(row, w, h, stride, dstp, imaskp, imaskstride, d->top - row);
             }
             if (d->bottom != 0) {
                 for (int row = h - d->bottom; row < h; ++row)
-                    processRowSLRMasked(row, w, h, stride, dstp, imaskp, imaskstride);
+                    processRowSLRMasked(row, w, h, stride, dstp, imaskp, imaskstride, d->bottom + row - h + 1);
             }
             if (d->left != 0) {
                 for (int column = d->left - 1; column > -1; --column)
-                    processColumnSLRMasked(column, w, h, stride, dstp, imaskp, imaskstride);
+                    processColumnSLRMasked(column, w, h, stride, dstp, imaskp, imaskstride, d->left - column);
             }
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
-                    processColumnSLRMasked(column, w, h, stride, dstp, imaskp, imaskstride);
+                    processColumnSLRMasked(column, w, h, stride, dstp, imaskp, imaskstride, d->right + column - w + 1);
             }
         } else {
             if (d->top != 0) {
@@ -1049,19 +1053,19 @@ static const VSFrame *VS_CC singlePlaneLimitedGetFrame(int n, int activationReas
             imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
-                    processRowSLRRefMasked(row, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride);
+                    processRowSLRRefMasked(row, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride, d->top - row);
             }
             if (d->bottom != 0) {
                 for (int row = h - d->bottom; row < h; ++row)
-                    processRowSLRRefMasked(row, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride);
+                    processRowSLRRefMasked(row, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride, d->bottom + row - h + 1);
             }
             if (d->left != 0) {
                 for (int column = d->left - 1; column > -1; --column)
-                    processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride);
+                    processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride, d->left - column);
             }
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
-                    processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride);
+                    processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride, d->right + column - w + 1);
             }
         } else {
             if (d->top != 0) {
@@ -1115,19 +1119,19 @@ static const VSFrame *VS_CC singlePlaneWeightedGetFrame(int n, int activationRea
             ptrdiff_t imaskstride = vsapi->getStride(ignore_mask, 0);
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
-                    processRowWSLRMasked(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride);
+                    processRowWSLRMasked(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride, d->top - row);
             }
             if (d->bottom != 0) {
                 for (int row = h - d->bottom; row < h; ++row)
-                    processRowWSLRMasked(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride);
+                    processRowWSLRMasked(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride, d->bottom + row - h + 1);
             }
             if (d->left != 0) {
                 for (int column = d->left - 1; column > -1; --column)
-                    processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride);
+                    processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride, d->left - column);
             }
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
-                    processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride);
+                    processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride, d->right + column - w + 1);
             }
         } else {
             if (d->top != 0) {
@@ -1181,19 +1185,19 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
             imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
-                    debugRowSLRMasked(row, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride);
+                    debugRowSLRMasked(row, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride, d->top - row);
             }
             if (d->bottom != 0) {
                 for (int row = h - d->bottom; row < h; ++row)
-                    debugRowSLRMasked(row, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride);
+                    debugRowSLRMasked(row, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride, d->bottom + row - h + 1);
             }
             if (d->left != 0) {
                 for (int column = d->left - 1; column > -1; --column)
-                    debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride);
+                    debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride, d->left - column);
             }
             if (d->right != 0) {
                 for (int column = w - d->right; column < w; ++column)
-                    debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride);
+                    debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride, d->right + column - w + 1);
             }
         } else {
             if (d->top != 0) {
