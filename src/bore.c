@@ -824,9 +824,7 @@ static void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float 
             /* } */
         }
 
-        const double *const_weights = weights;
-
-        status = gsl_fit_wmul(const_cur + start, 1, const_weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i] *= c1;
@@ -905,9 +903,7 @@ static void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, 
             /* } */
         }
 
-        const double *const_weights = weights;
-
-        status = gsl_fit_wmul(const_cur + start, 1, const_weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+        status = gsl_fit_wmul(const_cur + start, 1, weights, 1, const_ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1)) 
             dstp[i * stride] *= c1;
@@ -958,6 +954,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
                 for (int column = w - d->right; column < w; ++column)
                     processColumnSLRMasked(column, w, h, stride, dstp, imaskp, imaskstride, d->right + column - w + 1);
             }
+            vsapi->freeFrame(ignore_mask);
         } else {
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
@@ -1067,6 +1064,7 @@ static const VSFrame *VS_CC singlePlaneLimitedGetFrame(int n, int activationReas
                 for (int column = w - d->right; column < w; ++column)
                     processColumnSLRRefMasked(column, w, h, stride, dstp, d->ref_line_size, imaskp, imaskstride, d->right + column - w + 1);
             }
+            vsapi->freeFrame(ignore_mask);
         } else {
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
@@ -1133,6 +1131,7 @@ static const VSFrame *VS_CC singlePlaneWeightedGetFrame(int n, int activationRea
                 for (int column = w - d->right; column < w; ++column)
                     processColumnWSLRMasked(column, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride, d->right + column - w + 1);
             }
+            vsapi->freeFrame(ignore_mask);
         } else {
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
@@ -1199,6 +1198,7 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
                 for (int column = w - d->right; column < w; ++column)
                     debugColumnSLRMasked(column, w, h, stride, dstp, dst, vsapi, imaskp, imaskstride, d->right + column - w + 1);
             }
+            vsapi->freeFrame(ignore_mask);
         } else {
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
@@ -1229,6 +1229,7 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
 static void VS_CC linearRegressionFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     LinearRegressionData *d = (LinearRegressionData *)instanceData;
     vsapi->freeNode(d->node);
+    vsapi->freeNode(d->ignore_mask);
     free(d);
 }
 
