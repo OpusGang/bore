@@ -882,7 +882,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         if (d->ignore_mask) {
             ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
             ptrdiff_t imaskstride = vsapi->getStride(ignore_mask, 0);
-            imaskp = vsapi->getReadPtr(ignore_mask, d->plane);
+            imaskp = vsapi->getReadPtr(ignore_mask, 0);
             if (d->top != 0) {
                 for (int row = d->top - 1; row > -1; --row)
                     d->processRow(row, w, h, stride, dstp, d->ref_line_size, d->sigmaS, d->sigmaR, d->sigmaD, imaskp, imaskstride, d->top - row);
