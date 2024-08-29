@@ -1,0 +1,1 @@
+option('static_gsl', type : 'boolean', value : false, description : 'Statically link GSL')
