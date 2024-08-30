@@ -25,7 +25,7 @@ core.bore.SinglePlaneDebug(clip clip, int left=0, int right=0, int top=0, int bo
 
 * `clip`: 32-bit float clip.
 * `left = 0`, `right = 0`, `top = 0`, `bottom = 0`: number of lines from each border to adjust.
-* `ignore_mask = None`: 8-bit gray mask with pixels to avoid when calculating the adjustment.
+* `ignore_mask = None`: 8-bit gray mask with pixels to avoid when calculating the adjustment. If more than one plane exists, only the first one is used, so it needs to match the to-be-adjusted plane's resolution.
 * `plane = 0`: Plane to adjust.
 * `sigmaS = 50, sigmaR = 0.5, sigmaD = 1.5`: SinglePlaneWeighted's smoothing parameters, same as a bilateral filter's, sigmaR is difference between pixels in same line, sigmaD is difference between adjustments compared to current pixel and its neighbor.
 * `ref_line_size = 100`: Reference line size for SinglePlaneLimited/Weighted. The actual size is `2 * ref_line_size + 1`.

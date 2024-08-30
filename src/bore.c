@@ -1048,10 +1048,60 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     LinRegMode mode = (enum LinRegMode) userData;
     LinearRegressionData d;
     LinearRegressionData *data;
-    int err;
+    int err, w, h;
 
     d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
+
+    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
+    if (err)
+        d.plane = 0;
+
+    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
+        vsapi->mapSetError(out, "bore: only constant format single float clip input is supported");
+        vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
+        return;
+    }
+    
+    if (vi->width == 0 || vi->height == 0) {
+        vsapi->mapSetError(out, "bore: only constant resolution clip input is supported");
+        vsapi->freeNode(d.node);
+        vsapi->freeNode(d.ignore_mask);
+        return;
+    }
+
+    w = vi->width;
+    h = vi->height;
+    
+    if (d.plane > 0) {
+        w = w >> vi->format.subSamplingW;
+        h = h >> vi->format.subSamplingH;
+    }
+
+    if (d.ignore_mask) {
+        const VSVideoInfo *ivi = vsapi->getVideoInfo(d.node);
+        if (!vsh_isConstantVideoFormat(ivi) || (ivi->format.sampleType != stInteger && ivi->format.bitsPerSample != 8)) {
+            vsapi->mapSetError(out, "bore: only constant format 8-bit ignore_mask input is supported");
+            vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask);
+            return;
+        }
+
+        if (ivi->width != w || ivi->height != h) {
+            vsapi->mapSetError(out, "bore: clip and ignore_mask must have matching dimensions");
+            vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask);
+            return;
+        }
+
+        if (ivi->width == 0 || ivi->height == 0) {
+            vsapi->mapSetError(out, "bore: only constant resolution ignore_mask input is supported");
+            vsapi->freeNode(d.node);
+            vsapi->freeNode(d.ignore_mask);
+            return;
+        }
+    }
 
     d.ignore_mask = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
     if (err)
@@ -1061,7 +1111,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (err)
         d.top = 0;
 
-    else if (d.top > vi->height / 2) {
+    else if (d.top > h / 2) {
         vsapi->mapSetError(out, "bore: top must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         vsapi->freeNode(d.ignore_mask);
@@ -1072,7 +1122,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (err)
         d.bottom = 0;
 
-    else if (d.bottom > vi->height / 2) {
+    else if (d.bottom > h / 2) {
         vsapi->mapSetError(out, "bore: bottom must be in [0, height / 2]");
         vsapi->freeNode(d.node);
         vsapi->freeNode(d.ignore_mask);
@@ -1083,7 +1133,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (err)
         d.left = 0;
 
-    else if (d.left > vi->width / 2) {
+    else if (d.left > w / 2) {
         vsapi->mapSetError(out, "bore: left must be in [0, width / 2]");
         vsapi->freeNode(d.node);
         vsapi->freeNode(d.ignore_mask);
@@ -1094,19 +1144,8 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (err)
         d.right = 0;
 
-    else if (d.right > vi->width / 2) {
+    else if (d.right > w / 2) {
         vsapi->mapSetError(out, "bore: right must be in [0, width / 2]");
-        vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
-        return;
-    }
-
-    d.plane = vsapi->mapGetInt(in, "plane", 0, &err);
-    if (err)
-        d.plane = 0;
-
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "bore: only constant format single float input");
         vsapi->freeNode(d.node);
         vsapi->freeNode(d.ignore_mask);
         return;
