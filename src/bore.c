@@ -1078,8 +1078,11 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
         w = w >> vi->format.subSamplingW;
         h = h >> vi->format.subSamplingH;
     }
-
-    if (d.ignore_mask) {
+    
+    d.ignore_mask = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
+    if (err)
+        d.ignore_mask = NULL;
+    else {
         const VSVideoInfo *ivi = vsapi->getVideoInfo(d.node);
         if (!vsh_isConstantVideoFormat(ivi) || (ivi->format.sampleType != stInteger && ivi->format.bitsPerSample != 8)) {
             vsapi->mapSetError(out, "bore: only constant format 8-bit ignore_mask input is supported");
@@ -1102,10 +1105,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             return;
         }
     }
-
-    d.ignore_mask = vsapi->mapGetNode(in, "ignore_mask", 0, &err);
-    if (err)
-        d.ignore_mask = NULL;
 
     d.top = vsapi->mapGetInt(in, "top", 0, &err);
     if (err)
