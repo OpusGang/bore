@@ -1060,14 +1060,12 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
         vsapi->mapSetError(out, "bore: only constant format single float clip input is supported");
         vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
         return;
     }
     
     if (vi->width == 0 || vi->height == 0) {
         vsapi->mapSetError(out, "bore: only constant resolution clip input is supported");
         vsapi->freeNode(d.node);
-        vsapi->freeNode(d.ignore_mask);
         return;
     }
 
@@ -1083,7 +1081,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     if (err)
         d.ignore_mask = NULL;
     else {
-        const VSVideoInfo *ivi = vsapi->getVideoInfo(d.node);
+        const VSVideoInfo *ivi = vsapi->getVideoInfo(d.ignore_mask);
         if (!vsh_isConstantVideoFormat(ivi) || (ivi->format.sampleType != stInteger && ivi->format.bitsPerSample != 8)) {
             vsapi->mapSetError(out, "bore: only constant format 8-bit ignore_mask input is supported");
             vsapi->freeNode(d.node);
