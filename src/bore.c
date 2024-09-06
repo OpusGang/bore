@@ -1199,13 +1199,8 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             }
             break;
         case LINREG_MODE_SINGLE_DEBUG:
-            if (d.ignore_mask) {
-                d.processRow = NULL;
-                d.processColumn = NULL;
-            } else {
-                d.processRow = NULL;
-                d.processColumn = NULL;
-            }
+            d.processRow = NULL;
+            d.processColumn = NULL;
     }
 
     data = (LinearRegressionData *)malloc(sizeof(d));
