@@ -5,7 +5,9 @@ project('bore', 'c', 'cpp',
 static_link_gsl = get_option('static_gsl')
 
 sources = [
-     'src/bore.c'
+     'src/bore.c',
+     'src/common.c',
+     'src/common.h'
 ]
 
 vapoursynth_dep = dependency('vapoursynth', version: '>=55').partial_dependency(compile_args : true, includes : true)
