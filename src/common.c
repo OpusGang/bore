@@ -1,3 +1,19 @@
+// This file is part of bore.
+// Copyright (C) 2024 OpusGang
+//
+// bore is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #include "common.h"
 
 #include <gsl/gsl_fit.h>
@@ -323,7 +339,7 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     free(weights);
 }
 
-void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, float* __restrict dstp1, float* __restrict dstp2, float* __restrict dstp3)
+void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3)
 {
     int i;
     int sign = 1;
@@ -366,7 +382,7 @@ void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
     gsl_vector_free(y);
 }
 
-void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, float* __restrict dstp1, float* __restrict dstp2, float* __restrict dstp3)
+void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3)
 {
     int i;
     int j;

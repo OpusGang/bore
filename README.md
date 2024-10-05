@@ -1,4 +1,4 @@
-This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html) to find a proper adjustment. 
+This approach to border deringing uses [linear least squares](https://www.gnu.org/software/gsl/doc/html/lls.html) to find a proper adjustment.
 
 SinglePlane does simple linear regression between each line and the first clean line. MultiPlane does the same with multiple linear regression using all three planes. SinglePlaneLimited does this for each pixel individually using only the nearest pixels defined by ref_line_size. SinglePlaneWeighted is SinglePlaneLimited with bilateral filter style weighting for distance and difference. SinglePlaneDebug is the same as SinglePlane, but saves adjustment values to frame props instead of applying them.
 
@@ -13,7 +13,7 @@ These are in order of operation, i.e. top, bottom, left, right, each from innerm
 ## Requirements
 * [GSL](https://www.gnu.org/software/gsl/)
 
-## Usage
+## VapourSynth usage
 
 ```
 core.bore.SinglePlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int plane=0)
@@ -21,6 +21,16 @@ core.bore.MultiPlane(clip clip, int left=0, int right=0, int top=0, int bottom=0
 core.bore.SinglePlaneLimited(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int ref_line_size=100, int plane=0)
 core.bore.SinglePlaneWeighted(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, float sigmaS=50.0, float sigmaR=0.5, float sigmaD=1.5, int ref_line_size=100, int plane=0)
 core.bore.SinglePlaneDebug(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int plane=0)
+```
+
+## AviSynth+ usage
+
+```
+bore_SinglePlane(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane")
+bore_MultiPlane(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane")
+bore_SinglePlaneLimited(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane", int "ref_line_size")
+bore_SinglePlaneWeighted(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane", int "ref_line_size", float "sigmaS", float "sigmaR", float "sigmaD")
+bore_SinglePlaneDebug(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane")
 ```
 
 * `clip`: 32-bit float clip.
@@ -32,9 +42,9 @@ core.bore.SinglePlaneDebug(clip clip, int left=0, int right=0, int top=0, int bo
 
 # Compilation
 
-```sh 
+```sh
 meson build
-ninja -C build 
+ninja -C build
 ```
 
 In Windows you can configure MinGW and run the meson build, but the easiest way is to [download LLVM](https://github.com/llvm/llvm-project/releases) (*-win64.exe file) and install with the **path option ticked**, then run:

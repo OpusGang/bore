@@ -53,7 +53,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         ptrdiff_t stride = vsapi->getStride(dst, plane) / 4;
         int w = vsapi->getFrameWidth(src, plane);
         int h = vsapi->getFrameHeight(src, plane);
-        float *dstp = (float *) vsapi->getWritePtr(dst, plane);
+        float* __restrict dstp = (float *) vsapi->getWritePtr(dst, plane);
 
         if (d->ignore_mask) {
             ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
@@ -121,10 +121,10 @@ static const VSFrame *VS_CC multiPlaneGetFrame(int n, int activationReason, void
         ptrdiff_t stride = vsapi->getStride(dst, plane) / 4;
         int w = vsapi->getFrameWidth(src, plane);
         int h = vsapi->getFrameHeight(src, plane);
-        float *dstp = (float *) vsapi->getWritePtr(dst, plane);
-        float *dstp1 = (float *) vsapi->getWritePtr(dst, 0);
-        float *dstp2 = (float *) vsapi->getWritePtr(dst, 1);
-        float *dstp3 = (float *) vsapi->getWritePtr(dst, 2);
+        float* dstp = (float*)vsapi->getWritePtr(dst, plane);
+        float* dstp1 = (float*)vsapi->getWritePtr(dst, 0);
+        float* dstp2 = (float*)vsapi->getWritePtr(dst, 1);
+        float* dstp3 = (float*)vsapi->getWritePtr(dst, 2);
 
         if (top != 0) {
             for (int row = top - 1; row > -1; --row)
@@ -151,7 +151,7 @@ static const VSFrame *VS_CC multiPlaneGetFrame(int n, int activationReason, void
     return NULL;
 }
 
-void set_frame_props(VSFrame* frame, double* props, const VSAPI* vsapi)
+static void set_frame_props(VSFrame* frame, double* props, const VSAPI* vsapi)
 {
     VSMap* __restrict dst_props = vsapi->getFramePropertiesRW(frame);
     vsapi->mapSetFloat(dst_props, "BoreAdjustment", props[0], maAppend);
@@ -181,14 +181,14 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
         ptrdiff_t stride = vsapi->getStride(dst, plane) / 4;
         int w = vsapi->getFrameWidth(src, plane);
         int h = vsapi->getFrameHeight(src, plane);
-        float *dstp = (float *) vsapi->getWritePtr(dst, plane);
+        float* __restrict dstp = (float *) vsapi->getWritePtr(dst, plane);
         double c1_cov11_sumsq[3] = { 0.0 };
         double* props = c1_cov11_sumsq;
 
         if (d->ignore_mask) {
             ignore_mask = vsapi->getFrameFilter(n, d->ignore_mask, frameCtx);
             ptrdiff_t imaskstride = vsapi->getStride(ignore_mask, 0);
-            imaskp = vsapi->getReadPtr(ignore_mask, plane);
+            imaskp = vsapi->getReadPtr(ignore_mask, 0);
             if (top != 0) {
                 for (int row = top - 1; row > -1; --row)
                 {
@@ -265,7 +265,7 @@ static void VS_CC linearRegressionFree(void *instanceData, VSCore *core, const V
 }
 
 static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    LinRegMode mode = (enum LinRegMode) userData;
+    LinRegMode mode = (LinRegMode) userData;
     int err, w, h;
 
     VSNode* node = vsapi->mapGetNode(in, "clip", 0, 0);
@@ -283,6 +283,12 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     
     if (vi->width == 0 || vi->height == 0) {
         vsapi->mapSetError(out, "bore: only constant resolution clip input is supported");
+        vsapi->freeNode(node);
+        return;
+    }
+
+    if (vi->format.numPlanes == 1 && plane > 0) {
+        vsapi->mapSetError(out, "bore: plane cannot be bigger than 0");
         vsapi->freeNode(node);
         return;
     }
@@ -305,6 +311,13 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             vsapi->freeNode(node);
             vsapi->freeNode(ignore_mask);
             return;
+        }
+
+        if (ivi->format.numPlanes > 1) {
+            vsapi->mapSetError(out, "bore: ignore_mask must be in gray format");
+            vsapi->freeNode(node);
+            vsapi->freeNode(ignore_mask);
+        return;
         }
 
         if (ivi->width != w || ivi->height != h) {
@@ -394,6 +407,14 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             }
             break;
         case LINREG_MODE_MULTI:
+            if (vi->format.numPlanes == 1) {
+                vsapi->mapSetError(out, "bore: clip must have 3 planes");
+                vsapi->freeNode(node);
+                if (ignore_mask)
+                    vsapi->freeNode(ignore_mask);
+                free(d);
+                return;
+            }
             d->shared.data.processRow = NULL;
             d->shared.data.processColumn = NULL;
             break;
