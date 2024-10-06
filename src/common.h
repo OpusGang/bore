@@ -17,6 +17,7 @@
 #ifndef BORE_COMMON_H
 #define BORE_COMMON_H
 
+#include <stddef.h>
 #include <stdlib.h>
 
 typedef enum
