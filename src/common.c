@@ -210,9 +210,9 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
 
     int status = gsl_fit_mul(cur, 1, ref, 1, w, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
-    if (!status || isfinite(c1_cov11_sumsq[0]))
+    if (status || !isfinite(c1_cov11_sumsq[0]))
     {
-        c1_cov11_sumsq[0] = 0;
+        c1_cov11_sumsq[0] = 1.0;
     }
 
     *props = c1_cov11_sumsq;
@@ -244,9 +244,9 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
 
     int status = gsl_fit_mul(cur, 1, ref, 1, h, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
-    if (!status || isfinite(c1_cov11_sumsq[0]))
+    if (status || !isfinite(c1_cov11_sumsq[0]))
     {
-        c1_cov11_sumsq[0] = 0;
+        c1_cov11_sumsq[0] = 1.0;
     }
     
     *props = c1_cov11_sumsq;
@@ -285,9 +285,9 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
 
     int status = gsl_fit_wmul(cur, 1, weights, 1, ref, 1, w, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
-    if (!status || isfinite(c1_cov11_sumsq[0]))
+    if (status || !isfinite(c1_cov11_sumsq[0]))
     {
-        c1_cov11_sumsq[0] = 0;
+        c1_cov11_sumsq[0] = 1.0;
     }
     
     *props = c1_cov11_sumsq;
@@ -327,9 +327,9 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
 
     int status = gsl_fit_wmul(cur, 1, weights, 1, ref, 1, h, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
-    if (!status || isfinite(c1_cov11_sumsq[0]))
+    if (status || !isfinite(c1_cov11_sumsq[0]))
     {
-        c1_cov11_sumsq[0] = 0;
+        c1_cov11_sumsq[0] = 1.0;
     }
     
     *props = c1_cov11_sumsq;
