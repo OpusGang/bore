@@ -78,19 +78,19 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         } else {
             if (top != 0) {
                 for (int row = top - 1; row > -1; --row)
-                    d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                    d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
             }
             if (bottom != 0) {
                 for (int row = h - bottom; row < h; ++row)
-                    d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                    d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
             }
             if (left != 0) {
                 for (int column = left - 1; column > -1; --column)
-                    d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                    d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
             }
             if (right != 0) {
                 for (int column = w - right; column < w; ++column)
-                    d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                    d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
             }
         }
 
@@ -415,8 +415,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
                 free(d);
                 return;
             }
-            d->shared.data.processRow = NULL;
-            d->shared.data.processColumn = NULL;
             break;
         case LINREG_MODE_SINGLE_LIMITED:
             if (ignore_mask) {
@@ -449,8 +447,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             }
             break;
         case LINREG_MODE_SINGLE_DEBUG:
-            d->shared.data.processRow = NULL;
-            d->shared.data.processColumn = NULL;
+            break;
     }
 
     VSFilterDependency deps[] = {{node, rpStrictSpatial}};
