@@ -442,8 +442,8 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             }
             else
             {
-                d->shared.data.processRow = &processRowSLR;
-                d->shared.data.processColumn = &processColumnSLR;
+                d->shared.data.processRow = &processRowWSLR;
+                d->shared.data.processColumn = &processColumnWSLR;
             }
             fi->get_frame = singlePlaneGetFrame;
             break;

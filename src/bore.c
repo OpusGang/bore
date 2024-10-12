@@ -444,8 +444,8 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
                 d->shared.data.processRow = &processRowWSLRMasked;
                 d->shared.data.processColumn = &processColumnWSLRMasked;
             } else {
-                d->shared.data.processRow = &processRowSLR;
-                d->shared.data.processColumn = &processColumnSLR;
+                d->shared.data.processRow = &processRowWSLR;
+                d->shared.data.processColumn = &processColumnWSLR;
             }
             break;
         case LINREG_MODE_SINGLE_DEBUG:
