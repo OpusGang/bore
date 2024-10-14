@@ -19,7 +19,7 @@
 #include <gsl/gsl_fit.h>
 #include <gsl/gsl_multifit.h>
 
-void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
     int sign = 1;
     if (row > h / 2)
@@ -57,7 +57,7 @@ void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
     free(ref);
 }
 
-void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
     int sign = 1;
     if (column > w / 2)
@@ -95,8 +95,15 @@ void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restr
     free(ref);
 }
 
-void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const unsigned char* imaskp = va_arg(args, const unsigned char*);
+    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const int mask_dist = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -141,8 +148,15 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
     free(weights);
 }
 
-void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const unsigned char* imaskp = va_arg(args, const unsigned char*);
+    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const int mask_dist = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -248,14 +262,15 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-    
+
     *props = c1_cov11_sumsq;
 
     free(cur);
     free(ref);
 }
 
-void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
+    const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
 {
     int sign = 1;
     if (row > h / 2)
@@ -289,7 +304,7 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-    
+
     *props = c1_cov11_sumsq;
 
     free(cur);
@@ -297,7 +312,8 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     free(weights);
 }
 
-void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
+    const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
 {
     int sign = 1;
     if (column > w / 2)
@@ -331,7 +347,7 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-    
+
     *props = c1_cov11_sumsq;
 
     free(cur);
@@ -423,8 +439,13 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
     gsl_vector_free(y);
 }
 
-void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -466,8 +487,13 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
     free(ref);
 }
 
-void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -509,8 +535,16 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
     free(ref);
 }
 
-void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    const unsigned char* imaskp = va_arg(args, const unsigned char*);
+    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const int mask_dist = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -561,8 +595,16 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     free(weights);
 }
 
-void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    const unsigned char* imaskp = va_arg(args, const unsigned char*);
+    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const int mask_dist = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -613,8 +655,16 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     free(weights);
 }
 
-void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    const double sigmaS = va_arg(args, double);
+    const double sigmaR = va_arg(args, double);
+    const double sigmaD = va_arg(args, double);
+    va_end(args);
+
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -681,8 +731,16 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
     free(ref);
 }
 
-void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    const double sigmaS = va_arg(args, double);
+    const double sigmaR = va_arg(args, double);
+    const double sigmaD = va_arg(args, double);
+    va_end(args);
+
     int sign = 1;
     if (column > w / 2)
         sign = -1;
@@ -736,8 +794,19 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
 }
 
 
-void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    const double sigmaS = va_arg(args, double);
+    const double sigmaR = va_arg(args, double);
+    const double sigmaD = va_arg(args, double);
+    const unsigned char* imaskp = va_arg(args, const unsigned char*);
+    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const int mask_dist = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (row > h / 2)
         sign = -1;
@@ -811,8 +880,19 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     free(ref);
 }
 
-void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, int ref_line_size, double sigmaS, double sigmaR, double sigmaD, const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
+    va_list args;
+    va_start(args, dstp);
+    const int ref_line_size = va_arg(args, int);
+    const double sigmaS = va_arg(args, double);
+    const double sigmaR = va_arg(args, double);
+    const double sigmaD = va_arg(args, double);
+    const unsigned char* imaskp = va_arg(args, const unsigned char*);
+    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const int mask_dist = va_arg(args, int);
+    va_end(args);
+
     int sign = 1;
     if (column > w / 2)
         sign = -1;

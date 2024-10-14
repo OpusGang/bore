@@ -92,22 +92,22 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
         if (top != 0)
         {
             for (int row = top - 1; row > -1; --row)
-                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
         }
         if (bottom != 0)
         {
             for (int row = h - bottom; row < h; ++row)
-                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
         }
         if (left != 0)
         {
             for (int column = left - 1; column > -1; --column)
-                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
         }
         if (right != 0)
         {
             for (int column = w - right; column < w; ++column)
-                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, NULL, 0, 0);
+                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD);
         }
     }
 
@@ -405,8 +405,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         case LINREG_MODE_MULTI:
             if (num_planes == 1)
                 return set_error(clip, ignore_mask, "bore: clip must have 3 planes.");
-            d->shared.data.processRow = NULL;
-            d->shared.data.processColumn = NULL;
+
             fi->get_frame = multiPlaneGetFrame;
             break;
         case LINREG_MODE_SINGLE_LIMITED:
@@ -442,15 +441,13 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             }
             else
             {
-                d->shared.data.processRow = &processRowSLR;
-                d->shared.data.processColumn = &processColumnSLR;
+                d->shared.data.processRow = &processRowWSLR;
+                d->shared.data.processColumn = &processColumnWSLR;
             }
             fi->get_frame = singlePlaneGetFrame;
             break;
         }
         case LINREG_MODE_SINGLE_DEBUG:
-            d->shared.data.processRow = NULL;
-            d->shared.data.processColumn = NULL;
             fi->get_frame = singlePlaneDebugGetFrame;
             break;
     }
