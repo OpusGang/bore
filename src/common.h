@@ -52,9 +52,9 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
 void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props);
 void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props);
 void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
-    const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist);
+    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
 void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
-    const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist);
+    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
 void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
 void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
 void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
