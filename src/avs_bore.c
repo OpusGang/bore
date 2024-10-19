@@ -305,7 +305,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         Right,
         Top,
         Bottom,
-        weight_mask,
+        Weight_mask,
         Plane
     } args_name;
 
@@ -330,7 +330,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
     if (num_planes == 4)
         return set_error(clip, NULL, "bore: clip must have less than 4 planes.");
 
-    AVS_Clip* weight_mask = avs_defined(avs_array_elt(args, weight_mask)) ? (avs_take_clip(avs_array_elt(args, weight_mask), env)) : NULL;
+    AVS_Clip* weight_mask = avs_defined(avs_array_elt(args, Weight_mask)) ? (avs_take_clip(avs_array_elt(args, Weight_mask), env)) : NULL;
     if (weight_mask)
     {
         const AVS_VideoInfo* ivi = avs_get_video_info(weight_mask);
