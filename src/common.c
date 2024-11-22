@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.h"
+#include <stdio.h>
 
 #include <gsl/gsl_fit.h>
 #include <gsl/gsl_multifit.h>
@@ -99,8 +100,12 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
 {
     va_list args;
     va_start(args, dstp);
-    const unsigned char* imaskp = va_arg(args, const unsigned char*);
-    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    (void) va_arg(args, int);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    const float* wmaskp = va_arg(args, const float*);
+    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
     const int mask_dist = va_arg(args, int);
     va_end(args);
 
@@ -117,15 +122,12 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
     weights = malloc(sizeof(double) * w);
 
     dstp += row * stride;
-    imaskp += row * imaskstride;
+    wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
-        if (imaskp[i] < 128 && imaskp[sign * mask_dist * imaskstride + i] < 128)
-            weights[i] = 1.0;
-        else
-            weights[i] = 0.0;
+        weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
     }
 
     double cov11, sumsq;
@@ -152,8 +154,12 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
 {
     va_list args;
     va_start(args, dstp);
-    const unsigned char* imaskp = va_arg(args, const unsigned char*);
-    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    (void) va_arg(args, int);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    const float* wmaskp = va_arg(args, const float*);
+    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
     const int mask_dist = va_arg(args, int);
     va_end(args);
 
@@ -169,16 +175,13 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
     ref = malloc(sizeof(double) * h);
     weights = malloc(sizeof(double) * h);
 
-    imaskp += column;
+    wmaskp += column;
     dstp += column;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
-        if (imaskp[i * imaskstride] < 128 && imaskp[sign * mask_dist + imaskstride * i] < 128)
-            weights[i] = 1.0;
-        else
-            weights[i] = 0.0;
+        weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
     }
 
     double cov11, sumsq;
@@ -270,7 +273,7 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
 }
 
 void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
-    const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
 {
     int sign = 1;
     if (row > h / 2)
@@ -285,15 +288,12 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     weights = malloc(sizeof(double) * w);
 
     dstp += row * stride;
-    imaskp += row * imaskstride;
+    wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
-        if (imaskp[i] < 128 && imaskp[sign * mask_dist * imaskstride + i] < 128)
-            weights[i] = 1.0;
-        else
-            weights[i] = 0.0;
+        weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
     }
 
     double c1_cov11_sumsq[3];
@@ -313,7 +313,7 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
 }
 
 void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
-    const unsigned char* __restrict imaskp, ptrdiff_t imaskstride, int mask_dist)
+    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
 {
     int sign = 1;
     if (column > w / 2)
@@ -327,16 +327,13 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     ref = malloc(sizeof(double) * h);
     weights = malloc(sizeof(double) * h);
 
-    imaskp += column;
+    wmaskp += column;
     dstp += column;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
-        if (imaskp[i * imaskstride] < 128 && imaskp[sign * mask_dist + imaskstride * i] < 128)
-            weights[i] = 1.0;
-        else
-            weights[i] = 0.0;
+        weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
     }
 
     double c1_cov11_sumsq[3];
@@ -540,8 +537,11 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     va_list args;
     va_start(args, dstp);
     const int ref_line_size = va_arg(args, int);
-    const unsigned char* imaskp = va_arg(args, const unsigned char*);
-    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    const float* wmaskp = va_arg(args, const float*);
+    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
     const int mask_dist = va_arg(args, int);
     va_end(args);
 
@@ -564,15 +564,12 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     weights = malloc(sizeof(double) * w);
 
     dstp += row * stride;
-    imaskp += row * imaskstride;
+    wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
-        if (imaskp[i] < 128 && imaskp[sign * mask_dist * imaskstride + i] < 128)
-            weights[i] = 1.0;
-        else
-            weights[i] = 0.0;
+        weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
     }
 
     for (i = 0; i < w; i++)
@@ -600,8 +597,11 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     va_list args;
     va_start(args, dstp);
     const int ref_line_size = va_arg(args, int);
-    const unsigned char* imaskp = va_arg(args, const unsigned char*);
-    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    (void) va_arg(args, double);
+    const float* wmaskp = va_arg(args, const float*);
+    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
     const int mask_dist = va_arg(args, int);
     va_end(args);
 
@@ -623,16 +623,13 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     ref = malloc(sizeof(double) * h);
     weights = malloc(sizeof(double) * h);
 
-    imaskp += column;
+    wmaskp += column;
     dstp += column;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
-        if (imaskp[i * imaskstride] < 128 && imaskp[sign * mask_dist + imaskstride * i] < 128)
-            weights[i] = 1.0;
-        else
-            weights[i] = 1.0;
+        weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
     }
 
     for (i = 0; i < h; i++)
@@ -802,8 +799,8 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     const double sigmaS = va_arg(args, double);
     const double sigmaR = va_arg(args, double);
     const double sigmaD = va_arg(args, double);
-    const unsigned char* imaskp = va_arg(args, const unsigned char*);
-    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const float* wmaskp = va_arg(args, const float*);
+    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
     const int mask_dist = va_arg(args, int);
     va_end(args);
 
@@ -825,7 +822,7 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     ref = malloc(sizeof(double) * w);
 
     dstp += row * stride;
-    imaskp += row * imaskstride;
+    wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
@@ -853,15 +850,11 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
         for (k = 0; k < stop - start; k++)
         {
             j = k + start;
-            if (imaskp[j] < 128 && imaskp[sign * imaskstride + j] < 128)
-            {
-                w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-                w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / (sigmaR * sigmaR)));
-                w_d = exp(-(ref[j] / cur[j] - ref[i] / cur[i]) * (ref[j] / cur[j] - ref[i] / cur[i]) / (sigmaD * sigmaD));
-                weights[k] = w_s * w_c * w_d;
-            }
-            else
-                weights[k] = 0.0;
+            
+            w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
+            w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / (sigmaR * sigmaR)));
+            w_d = exp(-(ref[j] / cur[j] - ref[i] / cur[i]) * (ref[j] / cur[j] - ref[i] / cur[i]) / (sigmaD * sigmaD));
+            weights[k] = w_s * w_c * w_d * wmaskp[j] * wmaskp[sign * wmaskstride + j];
             /* if (i == 1370) { */
             /*     dstp[j] = w_d;//(dstp[j] - dstp[i]) * (dstp[j] - dstp[i]); */
             /*     dstp[i] = 1.0; */
@@ -888,8 +881,8 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
     const double sigmaS = va_arg(args, double);
     const double sigmaR = va_arg(args, double);
     const double sigmaD = va_arg(args, double);
-    const unsigned char* imaskp = va_arg(args, const unsigned char*);
-    const ptrdiff_t imaskstride = va_arg(args, ptrdiff_t);
+    const float* wmaskp = va_arg(args, const float*);
+    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
     const int mask_dist = va_arg(args, int);
     va_end(args);
 
@@ -913,7 +906,7 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
     double* weights;
     weights = malloc(sizeof(double) * (2 * ref_line_size));
 
-    imaskp += column;
+    wmaskp += column;
     dstp += column;
     for (i = 0; i < h; i++)
     {
@@ -937,22 +930,18 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
         for (k = 0; k < stop - start; k++)
         {
             j = k + start;
-            if (imaskp[j * imaskstride] < 128 && imaskp[sign + imaskstride * j] < 128)
-            {
-                /* cur_cur = cur[i]; */
-                /* cur_ref = cur[j]; */
-                /* ref_cur = ref[i]; */
-                /* ref_ref = ref[j]; */
-                /* w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS)); */
-                /* w_c = exp(-((ref_ref - ref_cur) * (ref_ref - ref_cur) + (cur_ref - cur_cur) * (cur_ref - cur_cur)) / (sigmaR * sigmaR)); */
-                /* w_d = exp(-(ref_ref / cur_ref - ref_cur / cur_cur) * (ref_ref / cur_ref - ref_cur / cur_cur) / (sigmaD * sigmaD)); */
-                w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-                w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / (sigmaR * sigmaR)));
-                w_d = exp(-(ref[j] / cur[j] - ref[i] / cur[i]) * (ref[j] / cur[j] - ref[i] / cur[i]) / (sigmaD * sigmaD));
-                weights[k] = w_s * w_c * w_d;
-            }
-            else
-                weights[k] = 0.0;
+            
+            /* cur_cur = cur[i]; */
+            /* cur_ref = cur[j]; */
+            /* ref_cur = ref[i]; */
+            /* ref_ref = ref[j]; */
+            /* w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS)); */
+            /* w_c = exp(-((ref_ref - ref_cur) * (ref_ref - ref_cur) + (cur_ref - cur_cur) * (cur_ref - cur_cur)) / (sigmaR * sigmaR)); */
+            /* w_d = exp(-(ref_ref / cur_ref - ref_cur / cur_cur) * (ref_ref / cur_ref - ref_cur / cur_cur) / (sigmaD * sigmaD)); */
+            w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
+            w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / (sigmaR * sigmaR)));
+            w_d = exp(-(ref[j] / cur[j] - ref[i] / cur[i]) * (ref[j] / cur[j] - ref[i] / cur[i]) / (sigmaD * sigmaD));
+            weights[k] = w_s * w_c * w_d * wmaskp[j * wmaskstride] * wmaskp[sign + wmaskstride * j];
             /* if (i == 880) { */
             /*     dstp[j * stride] = weights[k]; */
             /*     dstp[i * stride] = 0.5; */

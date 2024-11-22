@@ -16,26 +16,26 @@ These are in order of operation, i.e. top, bottom, left, right, each from innerm
 ## VapourSynth usage
 
 ```
-core.bore.SinglePlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int plane=0)
-core.bore.MultiPlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int plane=0)
-core.bore.SinglePlaneLimited(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int ref_line_size=100, int plane=0)
-core.bore.SinglePlaneWeighted(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, float sigmaS=50.0, float sigmaR=0.5, float sigmaD=1.5, int ref_line_size=100, int plane=0)
-core.bore.SinglePlaneDebug(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip ignore_mask=None, int plane=0)
+core.bore.SinglePlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
+core.bore.MultiPlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
+core.bore.SinglePlaneLimited(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int ref_line_size=100, int plane=0)
+core.bore.SinglePlaneWeighted(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, float sigmaS=50.0, float sigmaR=0.5, float sigmaD=1.5, int ref_line_size=100, int plane=0)
+core.bore.SinglePlaneDebug(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
 ```
 
 ## AviSynth+ usage
 
 ```
-bore_SinglePlane(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane")
-bore_MultiPlane(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane")
-bore_SinglePlaneLimited(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane", int "ref_line_size")
-bore_SinglePlaneWeighted(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane", int "ref_line_size", float "sigmaS", float "sigmaR", float "sigmaD")
-bore_SinglePlaneDebug(clip input, int "left", int "right", int "top", int "bottom", clip "ignore_mask", int "plane")
+bore_SinglePlane(clip input, int "left", int "right", int "top", int "bottom", clip "weight_mask", int "plane")
+bore_MultiPlane(clip input, int "left", int "right", int "top", int "bottom", clip "weight_mask", int "plane")
+bore_SinglePlaneLimited(clip input, int "left", int "right", int "top", int "bottom", clip "weight_mask", int "plane", int "ref_line_size")
+bore_SinglePlaneWeighted(clip input, int "left", int "right", int "top", int "bottom", clip "weight_mask", int "plane", int "ref_line_size", float "sigmaS", float "sigmaR", float "sigmaD")
+bore_SinglePlaneDebug(clip input, int "left", int "right", int "top", int "bottom", clip "weight_mask", int "plane")
 ```
 
 * `clip`: 32-bit float clip.
 * `left = 0`, `right = 0`, `top = 0`, `bottom = 0`: number of lines from each border to adjust.
-* `ignore_mask = None`: 8-bit gray mask with pixels to avoid when calculating the adjustment. If more than one plane exists, only the first one is used, so it needs to match the to-be-adjusted plane's resolution.
+* `weight_mask = None`: 32-bit gray mask with pixel weights, useful for discluding edges and clipped areas from adjustment calculation. If more than one plane exists, only the first one is used, so it needs to match the to-be-adjusted plane's resolution.
 * `plane = 0`: Plane to adjust.
 * `sigmaS = 50, sigmaR = 0.5, sigmaD = 1.5`: SinglePlaneWeighted's smoothing parameters, same as a bilateral filter's, sigmaR is difference between pixels in same line, sigmaD is difference between adjustments compared to current pixel and its neighbor.
 * `ref_line_size = 100`: Reference line size for SinglePlaneLimited/Weighted. The actual size is `2 * ref_line_size + 1`.

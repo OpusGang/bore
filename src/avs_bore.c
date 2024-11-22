@@ -23,7 +23,7 @@ typedef struct
     {
         LinearRegressionData data;
     } shared;
-    AVS_Clip* ignore_mask;
+    AVS_Clip* weight_mask;
 } AVS_LinearRegressionData;
 
 static AVS_FORCEINLINE int avs_plane(const int plane_in, const AVS_VideoInfo* vi)
@@ -59,33 +59,33 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
     int h = avs_get_height_p(frame, plane);
     float* __restrict dstp = (float*)avs_get_write_ptr_p(frame, plane);
 
-    if (d->ignore_mask)
+    if (d->weight_mask)
     {
-        AVS_VideoFrame* ignore_mask = avs_get_frame(d->ignore_mask, n);
-        ptrdiff_t imaskstride = avs_get_pitch(ignore_mask);
-        const uint8_t* imaskp = avs_get_read_ptr(ignore_mask);
+        AVS_VideoFrame* weight_mask = avs_get_frame(d->weight_mask, n);
+        ptrdiff_t wmaskstride = avs_get_pitch(weight_mask) / 4;
+        const float* wmaskp = (float*) avs_get_read_ptr(weight_mask);
         if (top != 0)
         {
             for (int row = top - 1; row > -1; --row)
-                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, imaskp, imaskstride, top - row);
+                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, wmaskp, wmaskstride, top - row);
         }
         if (bottom != 0)
         {
             for (int row = h - bottom; row < h; ++row)
-                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, imaskp, imaskstride, bottom + row - h + 1);
+                d->shared.data.processRow(row, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, wmaskp, wmaskstride, bottom + row - h + 1);
         }
         if (left != 0)
         {
             for (int column = left - 1; column > -1; --column)
-                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, imaskp, imaskstride, left - column);
+                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, wmaskp, wmaskstride, left - column);
         }
         if (right != 0)
         {
             for (int column = w - right; column < w; ++column)
-                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, imaskp, imaskstride, right + column - w + 1);
+                d->shared.data.processColumn(column, w, h, stride, dstp, ref_line_size, sigmaS, sigmaR, sigmaD, wmaskp, wmaskstride, right + column - w + 1);
         }
 
-        avs_release_video_frame(ignore_mask);
+        avs_release_video_frame(weight_mask);
     }
     else
     {
@@ -191,16 +191,16 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
     double c1_cov11_sumsq[3] = { 0.0 };
     double* props = c1_cov11_sumsq;
 
-    if (d->ignore_mask)
+    if (d->weight_mask)
     {
-        AVS_VideoFrame* ignore_mask = avs_get_frame(d->ignore_mask, n);
-        ptrdiff_t imaskstride = avs_get_pitch(ignore_mask);
-        const uint8_t* imaskp = avs_get_read_ptr(ignore_mask);
+        AVS_VideoFrame* weight_mask = avs_get_frame(d->weight_mask, n);
+        ptrdiff_t wmaskstride = avs_get_pitch(weight_mask) / 4;
+        const float* wmaskp = (float*) avs_get_read_ptr(weight_mask);
         if (top != 0)
         {
             for (int row = top - 1; row > -1; --row)
             {
-                debugRowSLRMasked(row, w, h, stride, dstp, &props, imaskp, imaskstride, top - row);
+                debugRowSLRMasked(row, w, h, stride, dstp, &props, wmaskp, wmaskstride, top - row);
                 set_frame_props(frame, props, fi->env);
             }
         }
@@ -208,7 +208,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
         {
             for (int row = h - bottom; row < h; ++row)
             {
-                debugRowSLRMasked(row, w, h, stride, dstp, &props, imaskp, imaskstride, bottom + row - h + 1);
+                debugRowSLRMasked(row, w, h, stride, dstp, &props, wmaskp, wmaskstride, bottom + row - h + 1);
                 set_frame_props(frame, props, fi->env);
             }
         }
@@ -216,7 +216,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
         {
             for (int column = left - 1; column > -1; --column)
             {
-                debugColumnSLRMasked(column, w, h, stride, dstp, &props, imaskp, imaskstride, left - column);
+                debugColumnSLRMasked(column, w, h, stride, dstp, &props, wmaskp, wmaskstride, left - column);
                 set_frame_props(frame, props, fi->env);
             }
         }
@@ -224,12 +224,12 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
         {
             for (int column = w - right; column < w; ++column)
             {
-                debugColumnSLRMasked(column, w, h, stride, dstp, &props, imaskp, imaskstride, right + column - w + 1);
+                debugColumnSLRMasked(column, w, h, stride, dstp, &props, wmaskp, wmaskstride, right + column - w + 1);
                 set_frame_props(frame, props, fi->env);
             }
         }
 
-        avs_release_video_frame(ignore_mask);
+        avs_release_video_frame(weight_mask);
     }
     else
     {
@@ -274,8 +274,8 @@ static void AVSC_CC free_bore(AVS_FilterInfo* fi)
 {
     AVS_LinearRegressionData* d = (AVS_LinearRegressionData*)fi->user_data;
 
-    if (d->ignore_mask)
-        avs_release_clip(d->ignore_mask);
+    if (d->weight_mask)
+        avs_release_clip(d->weight_mask);
 
     free(d);
 }
@@ -286,10 +286,10 @@ static int AVSC_CC set_cache_hints_bore(AVS_FilterInfo* fi, int cachehints, int 
     return cachehints == AVS_CACHE_GET_MTMODE ? 1 : 0;
 }
 
-static AVS_FORCEINLINE AVS_Value set_error(AVS_Clip* clip, AVS_Clip* ignore_mask, const char* msg)
+static AVS_FORCEINLINE AVS_Value set_error(AVS_Clip* clip, AVS_Clip* weight_mask, const char* msg)
 {
-    if (ignore_mask)
-        avs_release_clip(ignore_mask);
+    if (weight_mask)
+        avs_release_clip(weight_mask);
 
     avs_release_clip(clip);
 
@@ -305,7 +305,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         Right,
         Top,
         Bottom,
-        Ignore_mask,
+        Weight_mask,
         Plane
     } args_name;
 
@@ -330,19 +330,19 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
     if (num_planes == 4)
         return set_error(clip, NULL, "bore: clip must have less than 4 planes.");
 
-    AVS_Clip* ignore_mask = avs_defined(avs_array_elt(args, Ignore_mask)) ? (avs_take_clip(avs_array_elt(args, Ignore_mask), env)) : NULL;
-    if (ignore_mask)
+    AVS_Clip* weight_mask = avs_defined(avs_array_elt(args, Weight_mask)) ? (avs_take_clip(avs_array_elt(args, Weight_mask), env)) : NULL;
+    if (weight_mask)
     {
-        const AVS_VideoInfo* ivi = avs_get_video_info(ignore_mask);
+        const AVS_VideoInfo* ivi = avs_get_video_info(weight_mask);
 
         if (!avs_is_planar(ivi) || avs_num_components(ivi) > 1)
-            return set_error(clip, ignore_mask, "bore: ignore_mask must be in gray planar format.");
-        if (avs_component_size(ivi) != 1)
-            return set_error(clip, ignore_mask, "bore: ignore_mask bit depth must be 8-bit.");
+            return set_error(clip, weight_mask, "bore: weight_mask must be in gray planar format.");
+        if (avs_component_size(ivi) < 4)
+            return set_error(clip, weight_mask, "bore: weight_mask bit depth must be 32-bit.");
         if (ivi->width != fi->vi.width || ivi->height != fi->vi.height)
-            return set_error(clip, ignore_mask, "bore: clip and ignore_mask must have matching dimensions.");
+            return set_error(clip, weight_mask, "bore: clip and weight_mask must have matching dimensions.");
         if (ivi->num_frames != fi->vi.num_frames)
-            return set_error(clip, ignore_mask, "bore: clip and ignore_mask must have same frames number.");
+            return set_error(clip, weight_mask, "bore: clip and weight_mask must have same frames number.");
     }
 
     const int is_rgb = avs_is_rgb(&fi->vi);
@@ -353,21 +353,21 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
 
     const int top = avs_defined(avs_array_elt(args, Top)) ? avs_as_int(avs_array_elt(args, Top)) : 0;
     if (top > half_h)
-        return set_error(clip, ignore_mask, "bore: top must be in [0, height / 2].");
+        return set_error(clip, weight_mask, "bore: top must be in [0, height / 2].");
 
     const int bottom = avs_defined(avs_array_elt(args, Bottom)) ? avs_as_int(avs_array_elt(args, Bottom)) : 0;
     if (bottom > half_h)
-        return set_error(clip, ignore_mask, "bore: bottom must be in [0, height / 2].");
+        return set_error(clip, weight_mask, "bore: bottom must be in [0, height / 2].");
 
     const int left = avs_defined(avs_array_elt(args, Left)) ? avs_as_int(avs_array_elt(args, Left)) : 0;
     if (left > half_w)
-        return set_error(clip, ignore_mask, "bore: left must be in [0, width / 2].");
+        return set_error(clip, weight_mask, "bore: left must be in [0, width / 2].");
 
     const int right = avs_defined(avs_array_elt(args, Right)) ? avs_as_int(avs_array_elt(args, Right)) : 0;
     if (right > half_w)
-        return set_error(clip, ignore_mask, "bore: right must be in [0, width / 2].");
+        return set_error(clip, weight_mask, "bore: right must be in [0, width / 2].");
 
-    d->ignore_mask = ignore_mask;
+    d->weight_mask = weight_mask;
     d->shared.data.plane = plane;
     d->shared.data.top = top;
     d->shared.data.bottom = bottom;
@@ -390,7 +390,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
     switch (mode)
     {
         case LINREG_MODE_SINGLE:
-            if (ignore_mask)
+            if (weight_mask)
             {
                 d->shared.data.processRow = &processRowSLRMasked;
                 d->shared.data.processColumn = &processColumnSLRMasked;
@@ -404,14 +404,14 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             break;
         case LINREG_MODE_MULTI:
             if (num_planes == 1)
-                return set_error(clip, ignore_mask, "bore: clip must have 3 planes.");
+                return set_error(clip, weight_mask, "bore: clip must have 3 planes.");
             if (!is_rgb && !avs_is_444(&fi->vi))
-                return set_error(clip, ignore_mask, "bore: only 444 format is supported.");
+                return set_error(clip, weight_mask, "bore: only 444 format is supported.");
 
             fi->get_frame = multiPlaneGetFrame;
             break;
         case LINREG_MODE_SINGLE_LIMITED:
-            if (ignore_mask)
+            if (weight_mask)
             {
                 d->shared.data.processRow = &processRowSLRRefMasked;
                 d->shared.data.processColumn = &processColumnSLRRefMasked;
@@ -436,7 +436,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             d->shared.data.sigmaR = avs_defined(avs_array_elt(args, SigmaR)) ? avs_as_float(avs_array_elt(args, SigmaR)) : 0.5;
             d->shared.data.sigmaD = avs_defined(avs_array_elt(args, SigmaD)) ? avs_as_float(avs_array_elt(args, SigmaD)) : 1.5;
 
-            if (ignore_mask)
+            if (weight_mask)
             {
                 d->shared.data.processRow = &processRowWSLRMasked;
                 d->shared.data.processColumn = &processColumnWSLRMasked;
@@ -473,7 +473,7 @@ const char* AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment* env)
         "[right]i"
         "[top]i"
         "[bottom]i"
-        "[ignore_mask]c"
+        "[weight_mask]c"
         "[plane]i", linearRegressionCreate, (void*)LINREG_MODE_SINGLE);
     avs_add_function(env, "bore_MultiPlane",
         "c"
@@ -481,7 +481,7 @@ const char* AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment* env)
         "[right]i"
         "[top]i"
         "[bottom]i"
-        "[ignore_mask]c"
+        "[weight_mask]c"
         "[plane]i", linearRegressionCreate, (void*)LINREG_MODE_MULTI);
     avs_add_function(env, "bore_SinglePlaneLimited",
         "c"
@@ -489,7 +489,7 @@ const char* AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment* env)
         "[right]i"
         "[top]i"
         "[bottom]i"
-        "[ignore_mask]c"
+        "[weight_mask]c"
         "[plane]i"
         "[ref_line_size]i", linearRegressionCreate, (void*)LINREG_MODE_SINGLE_LIMITED);
     avs_add_function(env, "bore_SinglePlaneWeighted",
@@ -498,7 +498,7 @@ const char* AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment* env)
         "[right]i"
         "[top]i"
         "[bottom]i"
-        "[ignore_mask]c"
+        "[weight_mask]c"
         "[plane]i"
         "[ref_line_size]i"
         "[sigmaS]f"
@@ -510,7 +510,7 @@ const char* AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment* env)
         "[right]i"
         "[top]i"
         "[bottom]i"
-        "[ignore_mask]c"
+        "[weight_mask]c"
         "[plane]i", linearRegressionCreate, (void*)LINREG_MODE_SINGLE_DEBUG);
 
     return "bore";
