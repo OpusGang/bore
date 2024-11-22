@@ -419,8 +419,8 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             {
                 vsapi->mapSetError(out, "bore: only 444 format is supported");
                 vsapi->freeNode(node);
-                if (ignore_mask)
-                    vsapi->freeNode(ignore_mask);
+                if (weight_mask)
+                    vsapi->freeNode(weight_mask);
                 free(d);
                 return;
             }
