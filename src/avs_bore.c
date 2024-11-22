@@ -405,6 +405,8 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         case LINREG_MODE_MULTI:
             if (num_planes == 1)
                 return set_error(clip, weight_mask, "bore: clip must have 3 planes.");
+            if (!is_rgb && !avs_is_444(&fi->vi))
+                return set_error(clip, weight_mask, "bore: only 444 format is supported.");
 
             fi->get_frame = multiPlaneGetFrame;
             break;

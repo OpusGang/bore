@@ -415,6 +415,15 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
                 free(d);
                 return;
             }
+            if (vi->format.colorFamily != cfRGB && vi->format.colorFamily != pfYUV444PS)
+            {
+                vsapi->mapSetError(out, "bore: only 444 format is supported");
+                vsapi->freeNode(node);
+                if (ignore_mask)
+                    vsapi->freeNode(ignore_mask);
+                free(d);
+                return;
+            }
             break;
         case LINREG_MODE_SINGLE_LIMITED:
             if (weight_mask) {
