@@ -46,7 +46,7 @@ jobs:
         meson compile -C builddir
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: bore-win64
         path: builddir/libbore.dll
