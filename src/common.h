@@ -49,11 +49,11 @@ void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
 void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
 void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
 void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props);
-void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props);
-void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
+void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq);
+void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq);
+void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
     const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
-void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
+void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
     const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
 void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
 void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
