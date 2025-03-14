@@ -204,7 +204,7 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
     free(weights);
 }
 
-void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props)
+void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq)
 {
     int sign = 1;
     if (row > h / 2)
@@ -223,8 +223,6 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
         ref[i] = dstp[sign * stride + i];
     }
 
-    double c1_cov11_sumsq[3];
-
     int status = gsl_fit_mul(cur, 1, ref, 1, w, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
     if (status || !isfinite(c1_cov11_sumsq[0]))
@@ -232,13 +230,11 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
         c1_cov11_sumsq[0] = 1.0;
     }
 
-    *props = c1_cov11_sumsq;
-
     free(cur);
     free(ref);
 }
 
-void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props)
+void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq)
 {
     int sign = 1;
     if (column > w / 2)
@@ -257,8 +253,6 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
         ref[i] = dstp[sign + stride * i];
     }
 
-    double c1_cov11_sumsq[3];
-
     int status = gsl_fit_mul(cur, 1, ref, 1, h, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
     if (status || !isfinite(c1_cov11_sumsq[0]))
@@ -266,13 +260,11 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
         c1_cov11_sumsq[0] = 1.0;
     }
 
-    *props = c1_cov11_sumsq;
-
     free(cur);
     free(ref);
 }
 
-void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
+void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
     const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
 {
     int sign = 1;
@@ -296,8 +288,6 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
         weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
     }
 
-    double c1_cov11_sumsq[3];
-
     int status = gsl_fit_wmul(cur, 1, weights, 1, ref, 1, w, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
     if (status || !isfinite(c1_cov11_sumsq[0]))
@@ -305,14 +295,12 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
         c1_cov11_sumsq[0] = 1.0;
     }
 
-    *props = c1_cov11_sumsq;
-
     free(cur);
     free(ref);
     free(weights);
 }
 
-void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double** props,
+void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
     const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
 {
     int sign = 1;
@@ -336,16 +324,12 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
         weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
     }
 
-    double c1_cov11_sumsq[3];
-
     int status = gsl_fit_wmul(cur, 1, weights, 1, ref, 1, h, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
 
     if (status || !isfinite(c1_cov11_sumsq[0]))
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-
-    *props = c1_cov11_sumsq;
 
     free(cur);
     free(ref);
