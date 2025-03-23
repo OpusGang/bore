@@ -183,7 +183,6 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
         int h = vsapi->getFrameHeight(src, plane);
         float* __restrict dstp = (float *) vsapi->getWritePtr(dst, plane);
         double c1_cov11_sumsq[3] = { 0.0 };
-        double* props = c1_cov11_sumsq;
 
         if (d->weight_mask) {
             weight_mask = vsapi->getFrameFilter(n, d->weight_mask, frameCtx);
@@ -192,29 +191,29 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
             if (top != 0) {
                 for (int row = top - 1; row > -1; --row)
                 {
-                    debugRowSLRMasked(row, w, h, stride, dstp, &props, wmaskp, wmaskstride, top - row);
-                    set_frame_props(dst, props, vsapi);
+                    debugRowSLRMasked(row, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, top - row);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             if (bottom != 0) {
                 for (int row = h - bottom; row < h; ++row)
                 {
-                    debugRowSLRMasked(row, w, h, stride, dstp, &props, wmaskp, wmaskstride, bottom + row - h + 1);
-                    set_frame_props(dst, props, vsapi);
+                    debugRowSLRMasked(row, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, bottom + row - h + 1);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             if (left != 0) {
                 for (int column = left - 1; column > -1; --column)
                 {
-                    debugColumnSLRMasked(column, w, h, stride, dstp, &props, wmaskp, wmaskstride, left - column);
-                    set_frame_props(dst, props, vsapi);
+                    debugColumnSLRMasked(column, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, left - column);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             if (right != 0) {
                 for (int column = w - right; column < w; ++column)
                 {
-                    debugColumnSLRMasked(column, w, h, stride, dstp, &props, wmaskp, wmaskstride, right + column - w + 1);
-                    set_frame_props(dst, props, vsapi);
+                    debugColumnSLRMasked(column, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, right + column - w + 1);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             vsapi->freeFrame(weight_mask);
@@ -222,29 +221,29 @@ static const VSFrame *VS_CC singlePlaneDebugGetFrame(int n, int activationReason
             if (top != 0) {
                 for (int row = top - 1; row > -1; --row)
                 {
-                    debugRowSLR(row, w, h, stride, dstp, &props);
-                    set_frame_props(dst, props, vsapi);
+                    debugRowSLR(row, w, h, stride, dstp, c1_cov11_sumsq);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             if (bottom != 0) {
                 for (int row = h - bottom; row < h; ++row)
                 {
-                    debugRowSLR(row, w, h, stride, dstp, &props);
-                    set_frame_props(dst, props, vsapi);
+                    debugRowSLR(row, w, h, stride, dstp, c1_cov11_sumsq);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             if (left != 0) {
                 for (int column = left - 1; column > -1; --column)
                 {
-                    debugColumnSLR(column, w, h, stride, dstp, &props);
-                    set_frame_props(dst, props, vsapi);
+                    debugColumnSLR(column, w, h, stride, dstp, c1_cov11_sumsq);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
             if (right != 0) {
                 for (int column = w - right; column < w; ++column)
                 {
-                    debugColumnSLR(column, w, h, stride, dstp, &props);
-                    set_frame_props(dst, props, vsapi);
+                    debugColumnSLR(column, w, h, stride, dstp, c1_cov11_sumsq);
+                    set_frame_props(dst, c1_cov11_sumsq, vsapi);
                 }
             }
         }

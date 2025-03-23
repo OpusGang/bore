@@ -189,7 +189,6 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
     int h = avs_get_height_p(frame, plane);
     float* __restrict dstp = (float*)avs_get_write_ptr_p(frame, plane);
     double c1_cov11_sumsq[3] = { 0.0 };
-    double* props = c1_cov11_sumsq;
 
     if (d->weight_mask)
     {
@@ -200,32 +199,32 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
         {
             for (int row = top - 1; row > -1; --row)
             {
-                debugRowSLRMasked(row, w, h, stride, dstp, &props, wmaskp, wmaskstride, top - row);
-                set_frame_props(frame, props, fi->env);
+                debugRowSLRMasked(row, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, top - row);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
         if (bottom != 0)
         {
             for (int row = h - bottom; row < h; ++row)
             {
-                debugRowSLRMasked(row, w, h, stride, dstp, &props, wmaskp, wmaskstride, bottom + row - h + 1);
-                set_frame_props(frame, props, fi->env);
+                debugRowSLRMasked(row, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, bottom + row - h + 1);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
         if (left != 0)
         {
             for (int column = left - 1; column > -1; --column)
             {
-                debugColumnSLRMasked(column, w, h, stride, dstp, &props, wmaskp, wmaskstride, left - column);
-                set_frame_props(frame, props, fi->env);
+                debugColumnSLRMasked(column, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, left - column);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
         if (right != 0)
         {
             for (int column = w - right; column < w; ++column)
             {
-                debugColumnSLRMasked(column, w, h, stride, dstp, &props, wmaskp, wmaskstride, right + column - w + 1);
-                set_frame_props(frame, props, fi->env);
+                debugColumnSLRMasked(column, w, h, stride, dstp, c1_cov11_sumsq, wmaskp, wmaskstride, right + column - w + 1);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
 
@@ -237,32 +236,32 @@ static AVS_VideoFrame* AVSC_CC singlePlaneDebugGetFrame(AVS_FilterInfo* fi, int 
         {
             for (int row = top - 1; row > -1; --row)
             {
-                debugRowSLR(row, w, h, stride, dstp, &props);
-                set_frame_props(frame, props, fi->env);
+                debugRowSLR(row, w, h, stride, dstp, c1_cov11_sumsq);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
         if (bottom != 0)
         {
             for (int row = h - bottom; row < h; ++row)
             {
-                debugRowSLR(row, w, h, stride, dstp, &props);
-                set_frame_props(frame, props, fi->env);
+                debugRowSLR(row, w, h, stride, dstp, c1_cov11_sumsq);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
         if (left != 0)
         {
             for (int column = left - 1; column > -1; --column)
             {
-                debugColumnSLR(column, w, h, stride, dstp, &props);
-                set_frame_props(frame, props, fi->env);
+                debugColumnSLR(column, w, h, stride, dstp, c1_cov11_sumsq);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
         if (right != 0)
         {
             for (int column = w - right; column < w; ++column)
             {
-                debugColumnSLR(column, w, h, stride, dstp, &props);
-                set_frame_props(frame, props, fi->env);
+                debugColumnSLR(column, w, h, stride, dstp, c1_cov11_sumsq);
+                set_frame_props(frame, c1_cov11_sumsq, fi->env);
             }
         }
     }
