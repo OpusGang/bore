@@ -21,49 +21,57 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-typedef enum
-{
-    LINREG_MODE_SINGLE = 1,
-    LINREG_MODE_MULTI = 2,
-    LINREG_MODE_SINGLE_LIMITED = 3,
-    LINREG_MODE_SINGLE_WEIGHTED = 4,
-    LINREG_MODE_SINGLE_DEBUG = 5
-} LinRegMode;
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
-typedef struct
-{
-    int plane;
-    int top;
-    int bottom;
-    int left;
-    int right;
-    int ref_line_size;
-    double sigmaS;
-    double sigmaR;
-    double sigmaD;
-    void (*processRow)(int, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-    void (*processColumn)(int, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-} LinearRegressionData;
+    typedef enum
+    {
+        LINREG_MODE_SINGLE = 1,
+        LINREG_MODE_MULTI = 2,
+        LINREG_MODE_SINGLE_LIMITED = 3,
+        LINREG_MODE_SINGLE_WEIGHTED = 4,
+        LINREG_MODE_SINGLE_DEBUG = 5
+    } LinRegMode;
 
-void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq);
-void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq);
-void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
-    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
-void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
-    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
-void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
-void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
-void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
-void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    typedef struct
+    {
+        int plane;
+        int top;
+        int bottom;
+        int left;
+        int right;
+        int ref_line_size;
+        double sigmaS;
+        double sigmaR;
+        double sigmaD;
+        void (*processRow)(int, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+        void (*processColumn)(int, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    } LinearRegressionData;
+
+    void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq);
+    void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq);
+    void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
+        const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
+    void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
+        const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist);
+    void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
+    void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
+    void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+    void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
