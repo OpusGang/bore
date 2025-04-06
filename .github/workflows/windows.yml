@@ -23,6 +23,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         fetch-depth: 1
+        submodules: true
 
     - uses: msys2/setup-msys2@v2
       with:
@@ -30,19 +31,13 @@ jobs:
         update: true
         install: mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-gcc mingw-w64-x86_64-vapoursynth mingw-w64-x86_64-gsl git
         
-    - name: Install AviSynth
+    - name: Get AviSynth headers
       run: |
-        git clone https://github.com/AviSynth/AviSynthPlus --branch master --single-branch avisynth-build
-        pushd avisynth-build
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_PLUGINS=OFF -DCMAKE_CXX_FLAGS="-D__CRT__NO_INLINE=1" -DCMAKE_INSTALL_PREFIX="D:/a/_temp/msys64/mingw64"
-        cmake --build build -j 2
-        cmake --install build
-        popd
-        rm -rf avisynth-build
+        git clone https://github.com/AviSynth/AviSynthPlus --branch master --depth 1 avisynth-build
 
     - name: Configure and build
       run: |
-        meson setup builddir --buildtype release -Dstatic_gsl=true -Dlibtype=both -Dcpp_args="-ID:/a/_temp/msys64/mingw64/include/avisynth" -Dcpp_link_args="-static-libgcc -static-libstdc++ -static"
+        meson setup builddir --buildtype release -Dstatic_gsl=true -Dlibtype=both -Dcpp_args="-I/d/a/bore/bore/avisynth-build/avs_core/include" -Dcpp_link_args="-static-libgcc -static-libstdc++ -static"
         meson compile -C builddir
 
     - name: Upload
