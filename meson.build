@@ -147,7 +147,7 @@ if libtype in ['avisynth', 'both']
             message('Warning: AviSynthPlus pkg-config "libdir" not found. Using default libdir for AviSynthPlus plugin installation.')
             avs_installdir = get_option('prefix') / get_option('libdir') / 'avisynth'
         else
-            avs_installdir = join_paths(avs_base_libdir, 'avisynth')
+            avs_installdir = join_paths(avs_pkg_libdir, 'avisynth')
             message('Using Avisynth pkg-config libdir for plugin installation: ' + avs_installdir)
         endif
     endif
