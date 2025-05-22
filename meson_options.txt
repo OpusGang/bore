@@ -1,3 +1,2 @@
 option('static_gsl', type : 'boolean', value : false, description : 'Statically link GSL')
 option('libtype', type: 'combo', choices: ['vapoursynth', 'avisynth', 'both'], value: 'vapoursynth', description : 'For what frame server to build')
-option('vs_install', type : 'boolean', value : true, description : 'Whether exist VapourSynth installation on the host machine')

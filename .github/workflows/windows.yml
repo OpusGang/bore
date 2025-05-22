@@ -29,15 +29,20 @@ jobs:
       with:
         msystem: mingw64
         update: true
-        install: mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-gcc mingw-w64-x86_64-vapoursynth mingw-w64-x86_64-gsl git
-        
-    - name: Get AviSynth headers
+        install: mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-gcc mingw-w64-x86_64-vapoursynth mingw-w64-x86_64-gsl git make
+
+    - name: Install AviSynth headers
       run: |
-        git clone https://github.com/AviSynth/AviSynthPlus --branch master --depth 1 avisynth-build
+        git clone https://github.com/AviSynth/AviSynthPlus --branch master
+        pushd AviSynthPlus
+        cmake -G "MSYS Makefiles" -B install_headers -DHEADERS_ONLY=ON -DCMAKE_INSTALL_PREFIX="D:/a/_temp/msys64/mingw64"
+        make -C install_headers VersionGen install
+        popd
+        rm -rf AviSynthPlus
 
     - name: Configure and build
       run: |
-        meson setup builddir --buildtype release -Dstatic_gsl=true -Dlibtype=both -Dcpp_args="-I/d/a/bore/bore/avisynth-build/avs_core/include" -Dcpp_link_args="-static-libgcc -static-libstdc++ -static"
+        meson setup builddir --buildtype release -Dstatic_gsl=true -Dlibtype=both -Dcpp_args="-ID:/a/_temp/msys64/mingw64/include/avisynth" -Dcpp_link_args="-static-libgcc -static-libstdc++ -static"
         meson compile -C builddir
 
     - name: Upload
