@@ -1,5 +1,5 @@
 project('bore', 'c', 'cpp',
-  version : '1.0.0-alpha',
+  version : '1.0.0',
   default_options : ['c_std=c17', 'cpp_std=c++20', 'warning_level=3', 'buildtype=release', 'b_ndebug=if-release'])
 
 static_link_gsl = get_option('static_gsl')
