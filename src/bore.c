@@ -414,9 +414,9 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
                 free(d);
                 return;
             }
-            if (vi->format.colorFamily != cfRGB && vi->format.colorFamily != pfYUV444PS)
+            if (vi->format.colorFamily != cfRGB && (vi->format.colorFamily != cfYUV || vi->format.subSamplingW != 0 || vi->format.subSamplingH != 0))
             {
-                vsapi->mapSetError(out, "bore: only 444 format is supported");
+                vsapi->mapSetError(out, "bore: only RGB or YUV444 format is supported");
                 vsapi->freeNode(node);
                 if (weight_mask)
                     vsapi->freeNode(weight_mask);
