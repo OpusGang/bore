@@ -1,0 +1,115 @@
+name: Build & Publish
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build-wheel-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-24.04
+          - arch: aarch64
+            os: ubuntu-24.04-arm
+          - arch: x86_64
+            os: macos-15-intel
+          - arch: arm64
+            os: macos-15
+
+    runs-on: ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} (${{ matrix.arch }})
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.4.1
+        with:
+          extras: uv
+          output-dir: dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bore-wheels-${{ runner.os }}-${{ matrix.arch }}
+          path: dist/*.whl
+
+  build-wheel-windows:
+    runs-on: windows-2025-vs2026
+    name: Build wheels on Windows x64 (MSYS2 CLANG64)
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up MSYS2 (CLANG64)
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          pacboy: >-
+            cmake:p
+            meson:p
+            ninja:p
+            pkgconf:p
+            toolchain:p
+            gsl:p
+
+      - name: Add MSYS2 CLANG64 toolchain to PATH
+        run: echo "${{ steps.msys2.outputs.msys2-location }}\clang64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Build wheels (uv)
+        run: uv build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bore-wheels-windows-x64
+          path: dist/*.whl
+
+  build-sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+
+      - name: Build sdist
+        run: uv build --sdist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bore-sdist
+          path: dist/*.tar.gz
+
+  publish:
+    name: Publish to PyPI
+    needs: [build-wheel-unix, build-wheel-windows, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bore-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
