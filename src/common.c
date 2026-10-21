@@ -759,7 +759,7 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
 
         for (k = start; k < stop; k++)
         {
-            weights[k - start] = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS) - ((cur[k] - dstp[i * stride]) * (cur[k] - dstp[i * stride])) / (sigmaR * sigmaR) - (ref[k] / cur[k] - dstp[i] / dstp[sign * stride + i]) * (ref[k] / cur[k] - dstp[i] / dstp[sign * stride + i]) / (sigmaD * sigmaD));
+            weights[k - start] = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS) - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / (sigmaR * sigmaR) - (ref[k] / cur[k] - ref[i] / cur[i]) * (ref[k] / cur[k] - ref[i] / cur[i]) / (sigmaD * sigmaD));
         }
 
         status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);

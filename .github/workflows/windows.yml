@@ -29,7 +29,13 @@ jobs:
       with:
         msystem: mingw64
         update: true
-        install: mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-gcc mingw-w64-x86_64-vapoursynth mingw-w64-x86_64-gsl git make
+        install: mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-gcc mingw-w64-x86_64-gsl git make
+
+    - name: Install VapourSynth headers
+      run: |
+        git clone --depth 1 https://github.com/vapoursynth/vapoursynth
+        cp vapoursynth/include/*.h /mingw64/include/
+        rm -rf vapoursynth
 
     - name: Install AviSynth headers
       run: |
