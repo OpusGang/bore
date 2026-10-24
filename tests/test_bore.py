@@ -283,6 +283,19 @@ def test_weight_mask_all_ones_close_to_unmasked(core, name):
         np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-6)
 
 
+@pytest.mark.parametrize("r", [0, 1, 3])
+def test_weighted_masked_small_ref_line_size(core, r):
+    """Regression: the masked weighted path allocated 2*r weights for 2*r+1-sample windows
+    (heap overflow, r=0 -> malloc(0)). With flat weights it must match the masked limited fit."""
+    src = gray_clip(core, degrade(smooth_image(W, H), top=2, bottom=2, left=2, right=2))
+    mask = gray_clip(core, np.ones((H, W), np.float32))
+    kw = dict(top=2, bottom=2, left=2, right=2, weight_mask=mask, ref_line_size=r)
+    a = get_planes(core.bore.SinglePlaneWeighted(src, sigmaS=1e6, sigmaR=1e6, sigmaD=1e6, **kw))[0]
+    b = get_planes(core.bore.SinglePlaneLimited(src, **kw))[0]
+    assert np.isfinite(a).all()
+    np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-6)
+
+
 @pytest.mark.parametrize("name", ("SinglePlane", "SinglePlaneLimited", "SinglePlaneWeighted", "SinglePlaneDebug"))
 def test_weight_mask_all_zero_leaves_input(core, name):
     deg = degrade(smooth_image(W, H), top=2, left=2)

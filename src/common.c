@@ -818,7 +818,7 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     double w_d;
 
     double* weights;
-    weights = malloc(sizeof(double) * (2 * ref_line_size));
+    weights = malloc(sizeof(double) * (2 * ref_line_size + 1));
 
     sign *= mask_dist;
 
@@ -888,7 +888,7 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
     ref = malloc(sizeof(double) * h);
 
     double* weights;
-    weights = malloc(sizeof(double) * (2 * ref_line_size));
+    weights = malloc(sizeof(double) * (2 * ref_line_size + 1));
 
     wmaskp += column;
     dstp += column;
