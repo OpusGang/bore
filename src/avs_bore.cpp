@@ -313,10 +313,6 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
 
     const int mode{ static_cast<int>(static_cast<LinRegMode>(reinterpret_cast<intptr_t>(param))) };
 
-    AVS_LinearRegressionData* d{ new (std::nothrow) AVS_LinearRegressionData() };
-    if (!d)
-        return avs_new_value_error("bore: out of memory allocation filter data");
-
     AVS_FilterInfo* fi;
     AVS_Clip* clip{ g_avs_api->avs_new_c_filter(env, &fi, avs_array_elt(args, Clip), 1) };
 
@@ -330,6 +326,8 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         return set_error(clip, nullptr, "bore: plane cannot be bigger than 0.");
     if (num_planes == 4)
         return set_error(clip, nullptr, "bore: clip must have less than 4 planes.");
+    if (plane < 0 || plane >= num_planes)
+        return set_error(clip, nullptr, "bore: plane must be in [0, number of planes - 1].");
 
     AVS_Clip* weight_mask{ avs_defined(avs_array_elt(args, Weight_mask)) ? (g_avs_api->avs_take_clip(avs_array_elt(args, Weight_mask), env)) : nullptr };
     if (weight_mask)
@@ -353,28 +351,30 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         : (fi->vi.width >> g_avs_api->avs_get_plane_width_subsampling(&fi->vi, AVS_PLANAR_U))) >> 1 };
 
     const int top{ avs_defined(avs_array_elt(args, Top)) ? avs_as_int(avs_array_elt(args, Top)) : 0 };
-    if (top > half_h)
+    if (top < 0 || top > half_h)
         return set_error(clip, weight_mask, "bore: top must be in [0, height / 2].");
 
     const int bottom{ avs_defined(avs_array_elt(args, Bottom)) ? avs_as_int(avs_array_elt(args, Bottom)) : 0 };
-    if (bottom > half_h)
+    if (bottom < 0 || bottom > half_h)
         return set_error(clip, weight_mask, "bore: bottom must be in [0, height / 2].");
 
     const int left{ avs_defined(avs_array_elt(args, Left)) ? avs_as_int(avs_array_elt(args, Left)) : 0 };
-    if (left > half_w)
+    if (left < 0 || left > half_w)
         return set_error(clip, weight_mask, "bore: left must be in [0, width / 2].");
 
     const int right{ avs_defined(avs_array_elt(args, Right)) ? avs_as_int(avs_array_elt(args, Right)) : 0 };
-    if (right > half_w)
+    if (right < 0 || right > half_w)
         return set_error(clip, weight_mask, "bore: right must be in [0, width / 2].");
 
-    d->weight_mask = weight_mask;
-    d->shared.data.plane = plane;
-    d->shared.data.top = top;
-    d->shared.data.bottom = bottom;
-    d->shared.data.left = left;
-    d->shared.data.right = right;
+    if (mode == LINREG_MODE_MULTI)
+    {
+        if (num_planes == 1)
+            return set_error(clip, weight_mask, "bore: clip must have 3 planes.");
+        if (!is_rgb && !g_avs_api->avs_is_444(&fi->vi))
+            return set_error(clip, weight_mask, "bore: only 444 format is supported.");
+    }
 
+    int ref_line_size{ 0 };
     if (mode == LINREG_MODE_SINGLE_LIMITED || mode == LINREG_MODE_SINGLE_WEIGHTED)
     {
         typedef enum
@@ -382,11 +382,48 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             Ref_line_size = 7
         } ref_line_arg_name;
 
-        d->shared.data.ref_line_size = avs_defined(avs_array_elt(args, Ref_line_size)) ?
-            avs_as_int(avs_array_elt(args, Ref_line_size)) : 100;
+        ref_line_size = avs_defined(avs_array_elt(args, Ref_line_size)) ? avs_as_int(avs_array_elt(args, Ref_line_size)) : 100;
+        if (ref_line_size < 0)
+            return set_error(clip, weight_mask, "bore: ref_line_size cannot be negative.");
     }
-    else
-        d->shared.data.ref_line_size = 0;
+
+    double sigmaS{ 0.0 };
+    double sigmaR{ 0.0 };
+    double sigmaD{ 0.0 };
+    if (mode == LINREG_MODE_SINGLE_WEIGHTED)
+    {
+        typedef enum
+        {
+            SigmaS = 8,
+            SigmaR,
+            SigmaD
+        } sigma_arg_name;
+
+        sigmaS = avs_defined(avs_array_elt(args, SigmaS)) ? avs_as_float(avs_array_elt(args, SigmaS)) : 50.0;
+        sigmaR = avs_defined(avs_array_elt(args, SigmaR)) ? avs_as_float(avs_array_elt(args, SigmaR)) : 0.5;
+        sigmaD = avs_defined(avs_array_elt(args, SigmaD)) ? avs_as_float(avs_array_elt(args, SigmaD)) : 1.5;
+        if (!(sigmaS > 0.0))
+            return set_error(clip, weight_mask, "bore: sigmaS must be greater than 0.");
+        if (!(sigmaR > 0.0))
+            return set_error(clip, weight_mask, "bore: sigmaR must be greater than 0.");
+        if (!(sigmaD > 0.0))
+            return set_error(clip, weight_mask, "bore: sigmaD must be greater than 0.");
+    }
+
+    AVS_LinearRegressionData* d{ new (std::nothrow) AVS_LinearRegressionData() };
+    if (!d)
+        return set_error(clip, weight_mask, "bore: out of memory allocation filter data");
+
+    d->weight_mask = weight_mask;
+    d->shared.data.plane = plane;
+    d->shared.data.top = top;
+    d->shared.data.bottom = bottom;
+    d->shared.data.left = left;
+    d->shared.data.right = right;
+    d->shared.data.ref_line_size = ref_line_size;
+    d->shared.data.sigmaS = sigmaS;
+    d->shared.data.sigmaR = sigmaR;
+    d->shared.data.sigmaD = sigmaD;
 
     switch (mode)
     {
@@ -404,11 +441,6 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             fi->get_frame = singlePlaneGetFrame;
             break;
         case LINREG_MODE_MULTI:
-            if (num_planes == 1)
-                return set_error(clip, weight_mask, "bore: clip must have 3 planes.");
-            if (!is_rgb && !g_avs_api->avs_is_444(&fi->vi))
-                return set_error(clip, weight_mask, "bore: only 444 format is supported.");
-
             fi->get_frame = multiPlaneGetFrame;
             break;
         case LINREG_MODE_SINGLE_LIMITED:
@@ -425,18 +457,6 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             fi->get_frame = singlePlaneGetFrame;
             break;
         case LINREG_MODE_SINGLE_WEIGHTED:
-        {
-            typedef enum
-            {
-                SigmaS = 8,
-                SigmaR,
-                SigmaD
-            } sigma_arg_name;
-
-            d->shared.data.sigmaS = avs_defined(avs_array_elt(args, SigmaS)) ? avs_as_float(avs_array_elt(args, SigmaS)) : 50.0;
-            d->shared.data.sigmaR = avs_defined(avs_array_elt(args, SigmaR)) ? avs_as_float(avs_array_elt(args, SigmaR)) : 0.5;
-            d->shared.data.sigmaD = avs_defined(avs_array_elt(args, SigmaD)) ? avs_as_float(avs_array_elt(args, SigmaD)) : 1.5;
-
             if (weight_mask)
             {
                 d->shared.data.processRow = &processRowWSLRMasked;
@@ -449,7 +469,6 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             }
             fi->get_frame = singlePlaneGetFrame;
             break;
-        }
         case LINREG_MODE_SINGLE_DEBUG:
             fi->get_frame = singlePlaneDebugGetFrame;
             break;
