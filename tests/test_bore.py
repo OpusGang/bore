@@ -507,7 +507,7 @@ def test_unknown_filter_specific_args_rejected(core, name):
 
 
 # --------------------------------------------------------------------------
-# Known bugs: invalid args that currently crash or are silently accepted.
+# Invalid args that used to crash (SIGSEGV) or be silently accepted.
 # Run in a subprocess so a segfault cannot take down the test session.
 # --------------------------------------------------------------------------
 
@@ -529,22 +529,30 @@ def run_isolated(expr):
     return r.returncode, r.stdout
 
 
-INVALID_ARGS_BUGS = {
+GRAY = "core.std.BlankClip(format=vs.GRAYS, width=64, height=48, color=0.5)"
+INVALID_ARGS = {
     "plane_too_big": "core.bore.SinglePlane(core.std.BlankClip(format=vs.YUV444PS, width=64, height=48), top=1, plane=3)",
     "plane_negative": "core.bore.SinglePlane(core.std.BlankClip(format=vs.GRAYS, width=64, height=48), top=1, plane=-1)",
+    "plane_negative_yuv": "core.bore.SinglePlaneDebug(core.std.BlankClip(format=vs.YUV444PS, width=64, height=48), top=1, plane=-1)",
     "multiplane_plane_too_big": "core.bore.MultiPlane(core.std.BlankClip(format=vs.RGBS, width=64, height=48), top=1, plane=3)",
-    "ref_line_size_negative": "core.bore.SinglePlaneLimited(core.std.BlankClip(format=vs.GRAYS, width=64, height=48, color=0.5), top=1, ref_line_size=-5)",
+    "ref_line_size_negative": f"core.bore.SinglePlaneLimited({GRAY}, top=1, ref_line_size=-5)",
+    "weighted_ref_line_size_negative": f"core.bore.SinglePlaneWeighted({GRAY}, top=1, ref_line_size=-1)",
     "half_float_input": "core.bore.SinglePlane(core.std.BlankClip(format=vs.GRAYH, width=64, height=48), top=1)",
-    "negative_border": "core.bore.SinglePlane(core.std.BlankClip(format=vs.GRAYS, width=64, height=48), top=-1)",
+    "half_float_weight_mask": f"core.bore.SinglePlane({GRAY}, top=1, weight_mask=core.std.BlankClip(format=vs.GRAYH, width=64, height=48))",
+    "negative_border": f"core.bore.SinglePlane({GRAY}, top=-1)",
+    "negative_bottom": f"core.bore.SinglePlaneLimited({GRAY}, bottom=-2)",
+    "negative_left": f"core.bore.SinglePlaneDebug({GRAY}, left=-1)",
+    "negative_right": f"core.bore.SinglePlaneWeighted({GRAY}, right=-1)",
+    "huge_border": f"core.bore.SinglePlane({GRAY}, top=2**32 + 1)",
+    "sigmaS_zero": f"core.bore.SinglePlaneWeighted({GRAY}, top=1, sigmaS=0.0)",
+    "sigmaR_negative": f"core.bore.SinglePlaneWeighted({GRAY}, top=1, sigmaR=-0.5)",
+    "sigmaD_zero": f"core.bore.SinglePlaneWeighted({GRAY}, top=1, sigmaD=0.0)",
 }
 
 
-@pytest.mark.xfail(reason="plugin does not validate these args: out-of-range plane / negative "
-                          "ref_line_size crash (SIGSEGV), 16-bit float input and negative borders "
-                          "are silently accepted", strict=False)
-@pytest.mark.parametrize("case", sorted(INVALID_ARGS_BUGS))
+@pytest.mark.parametrize("case", sorted(INVALID_ARGS))
 def test_invalid_args_raise_cleanly(core, case):
-    rc, out = run_isolated(INVALID_ARGS_BUGS[case])
+    rc, out = run_isolated(INVALID_ARGS[case])
     assert rc == 0, f"process crashed (rc={rc})"
     assert out.startswith("VSERROR"), out
 

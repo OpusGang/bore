@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <stdint.h>
+
 #include "common.h"
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
@@ -264,128 +266,159 @@ static void VS_CC linearRegressionFree(void *instanceData, VSCore *core, const V
 }
 
 static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    LinRegMode mode = (LinRegMode) userData;
+    LinRegMode mode = (LinRegMode)(intptr_t)userData;
     int err, w, h;
+    const char *error = NULL;
+    VSNode *weight_mask = NULL;
+    VS_LinearRegressionData *d = NULL;
 
     VSNode* node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-    int plane = (int)vsapi->mapGetInt(in, "plane", 0, &err);
+    int plane = vsapi->mapGetIntSaturated(in, "plane", 0, &err);
     if (err)
         plane = 0;
 
-    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat) {
-        vsapi->mapSetError(out, "bore: only constant format single float clip input is supported");
-        vsapi->freeNode(node);
-        return;
+    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stFloat || vi->format.bitsPerSample != 32) {
+        error = "bore: only constant format single float clip input is supported";
+        goto fail;
     }
-    
+
     if (vi->width == 0 || vi->height == 0) {
-        vsapi->mapSetError(out, "bore: only constant resolution clip input is supported");
-        vsapi->freeNode(node);
-        return;
+        error = "bore: only constant resolution clip input is supported";
+        goto fail;
     }
 
     if (vi->format.numPlanes == 1 && plane > 0) {
-        vsapi->mapSetError(out, "bore: plane cannot be bigger than 0");
-        vsapi->freeNode(node);
-        return;
+        error = "bore: plane cannot be bigger than 0";
+        goto fail;
+    }
+
+    if (plane < 0 || plane >= vi->format.numPlanes) {
+        error = "bore: plane must be in [0, number of planes - 1]";
+        goto fail;
+    }
+
+    if (mode == LINREG_MODE_MULTI) {
+        if (vi->format.numPlanes == 1) {
+            error = "bore: clip must have 3 planes";
+            goto fail;
+        }
+        if (vi->format.colorFamily != cfRGB && (vi->format.colorFamily != cfYUV || vi->format.subSamplingW != 0 || vi->format.subSamplingH != 0)) {
+            error = "bore: only RGB or YUV444 format is supported";
+            goto fail;
+        }
     }
 
     w = vi->width;
     h = vi->height;
-    
+
     if (plane > 0) {
         w = w >> vi->format.subSamplingW;
         h = h >> vi->format.subSamplingH;
     }
-    
-    VSNode* weight_mask = vsapi->mapGetNode(in, "weight_mask", 0, &err);
+
+    weight_mask = vsapi->mapGetNode(in, "weight_mask", 0, &err);
     if (err)
         weight_mask = NULL;
     else {
         const VSVideoInfo *ivi = vsapi->getVideoInfo(weight_mask);
-        if (!vsh_isConstantVideoFormat(ivi) || (ivi->format.sampleType != stFloat)) {
-            vsapi->mapSetError(out, "bore: only constant format single float weight_mask input is supported");
-            vsapi->freeNode(node);
-            vsapi->freeNode(weight_mask);
-            return;
+        if (!vsh_isConstantVideoFormat(ivi) || ivi->format.sampleType != stFloat || ivi->format.bitsPerSample != 32) {
+            error = "bore: only constant format single float weight_mask input is supported";
+            goto fail;
         }
 
         if (ivi->format.numPlanes > 1) {
-            vsapi->mapSetError(out, "bore: weight_mask must be in gray format");
-            vsapi->freeNode(node);
-            vsapi->freeNode(weight_mask);
-        return;
+            error = "bore: weight_mask must be in gray format";
+            goto fail;
         }
 
         if (ivi->width != w || ivi->height != h) {
-            vsapi->mapSetError(out, "bore: clip and weight_mask must have matching dimensions");
-            vsapi->freeNode(node);
-            vsapi->freeNode(weight_mask);
-            return;
+            error = "bore: clip and weight_mask must have matching dimensions";
+            goto fail;
         }
 
         if (ivi->width == 0 || ivi->height == 0) {
-            vsapi->mapSetError(out, "bore: only constant resolution weight_mask input is supported");
-            vsapi->freeNode(node);
-            vsapi->freeNode(weight_mask);
-            return;
+            error = "bore: only constant resolution weight_mask input is supported";
+            goto fail;
         }
     }
 
-    int top = (int)vsapi->mapGetInt(in, "top", 0, &err);
+    int top = vsapi->mapGetIntSaturated(in, "top", 0, &err);
     if (err)
         top = 0;
-    else if (top > h / 2) {
-        vsapi->mapSetError(out, "bore: top must be in [0, height / 2]");
-        vsapi->freeNode(node);
-        if (weight_mask)
-            vsapi->freeNode(weight_mask);
-        return;
+    else if (top < 0 || top > h / 2) {
+        error = "bore: top must be in [0, height / 2]";
+        goto fail;
     }
 
-    int bottom = (int)vsapi->mapGetInt(in, "bottom", 0, &err);
+    int bottom = vsapi->mapGetIntSaturated(in, "bottom", 0, &err);
     if (err)
         bottom = 0;
-    else if (bottom > h / 2) {
-        vsapi->mapSetError(out, "bore: bottom must be in [0, height / 2]");
-        vsapi->freeNode(node);
-        if (weight_mask)
-            vsapi->freeNode(weight_mask);
-        return;
+    else if (bottom < 0 || bottom > h / 2) {
+        error = "bore: bottom must be in [0, height / 2]";
+        goto fail;
     }
 
-    int left = (int)vsapi->mapGetInt(in, "left", 0, &err);
+    int left = vsapi->mapGetIntSaturated(in, "left", 0, &err);
     if (err)
         left = 0;
-    else if (left > w / 2) {
-        vsapi->mapSetError(out, "bore: left must be in [0, width / 2]");
-        vsapi->freeNode(node);
-        if (weight_mask)
-            vsapi->freeNode(weight_mask);
-        return;
+    else if (left < 0 || left > w / 2) {
+        error = "bore: left must be in [0, width / 2]";
+        goto fail;
     }
 
-    int right = (int)vsapi->mapGetInt(in, "right", 0, &err);
+    int right = vsapi->mapGetIntSaturated(in, "right", 0, &err);
     if (err)
         right = 0;
-    else if (right > w / 2) {
-        vsapi->mapSetError(out, "bore: right must be in [0, width / 2]");
-        vsapi->freeNode(node);
-        if (weight_mask)
-            vsapi->freeNode(weight_mask);
-        return;
+    else if (right < 0 || right > w / 2) {
+        error = "bore: right must be in [0, width / 2]";
+        goto fail;
     }
 
     int ref_line_size = 0;
     if (mode == LINREG_MODE_SINGLE_LIMITED || mode == LINREG_MODE_SINGLE_WEIGHTED) {
-        ref_line_size = (int)vsapi->mapGetInt(in, "ref_line_size", 0, &err);
+        ref_line_size = vsapi->mapGetIntSaturated(in, "ref_line_size", 0, &err);
         if (err)
             ref_line_size = 100;
+        else if (ref_line_size < 0) {
+            error = "bore: ref_line_size cannot be negative";
+            goto fail;
+        }
     }
 
-    VS_LinearRegressionData* d = (VS_LinearRegressionData*)malloc(sizeof(VS_LinearRegressionData));
+    double sigmaS = 0.0, sigmaR = 0.0, sigmaD = 0.0;
+    if (mode == LINREG_MODE_SINGLE_WEIGHTED) {
+        sigmaS = vsapi->mapGetFloat(in, "sigmaS", 0, &err);
+        if (err)
+            sigmaS = 50.0;
+        else if (!(sigmaS > 0.0)) {
+            error = "bore: sigmaS must be greater than 0";
+            goto fail;
+        }
+
+        sigmaR = vsapi->mapGetFloat(in, "sigmaR", 0, &err);
+        if (err)
+            sigmaR = 0.5;
+        else if (!(sigmaR > 0.0)) {
+            error = "bore: sigmaR must be greater than 0";
+            goto fail;
+        }
+
+        sigmaD = vsapi->mapGetFloat(in, "sigmaD", 0, &err);
+        if (err)
+            sigmaD = 1.5;
+        else if (!(sigmaD > 0.0)) {
+            error = "bore: sigmaD must be greater than 0";
+            goto fail;
+        }
+    }
+
+    d = (VS_LinearRegressionData*)calloc(1, sizeof(VS_LinearRegressionData));
+    if (!d) {
+        error = "bore: out of memory";
+        goto fail;
+    }
     d->node = node;
     d->weight_mask = weight_mask;
     d->shared.data.plane = plane;
@@ -394,6 +427,9 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     d->shared.data.left = left;
     d->shared.data.right = right;
     d->shared.data.ref_line_size = ref_line_size;
+    d->shared.data.sigmaS = sigmaS;
+    d->shared.data.sigmaR = sigmaR;
+    d->shared.data.sigmaD = sigmaD;
 
     switch (mode) {
         case LINREG_MODE_SINGLE:
@@ -403,25 +439,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             } else {
                 d->shared.data.processRow = &processRowSLR;
                 d->shared.data.processColumn = &processColumnSLR;
-            }
-            break;
-        case LINREG_MODE_MULTI:
-            if (vi->format.numPlanes == 1) {
-                vsapi->mapSetError(out, "bore: clip must have 3 planes");
-                vsapi->freeNode(node);
-                if (weight_mask)
-                    vsapi->freeNode(weight_mask);
-                free(d);
-                return;
-            }
-            if (vi->format.colorFamily != cfRGB && (vi->format.colorFamily != cfYUV || vi->format.subSamplingW != 0 || vi->format.subSamplingH != 0))
-            {
-                vsapi->mapSetError(out, "bore: only RGB or YUV444 format is supported");
-                vsapi->freeNode(node);
-                if (weight_mask)
-                    vsapi->freeNode(weight_mask);
-                free(d);
-                return;
             }
             break;
         case LINREG_MODE_SINGLE_LIMITED:
@@ -434,18 +451,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             }
             break;
         case LINREG_MODE_SINGLE_WEIGHTED:
-            d->shared.data.sigmaS = vsapi->mapGetFloat(in, "sigmaS", 0, &err);
-            if (err)
-                d->shared.data.sigmaS = 50.0;
-
-            d->shared.data.sigmaR = vsapi->mapGetFloat(in, "sigmaR", 0, &err);
-            if (err)
-                d->shared.data.sigmaR = 0.5;
-
-            d->shared.data.sigmaD = vsapi->mapGetFloat(in, "sigmaD", 0, &err);
-            if (err)
-                d->shared.data.sigmaD = 1.5;
-
             if (weight_mask) {
                 d->shared.data.processRow = &processRowWSLRMasked;
                 d->shared.data.processColumn = &processColumnWSLRMasked;
@@ -454,29 +459,38 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
                 d->shared.data.processColumn = &processColumnWSLR;
             }
             break;
+        case LINREG_MODE_MULTI:
         case LINREG_MODE_SINGLE_DEBUG:
             break;
     }
 
-    VSFilterDependency deps[] = {{node, rpStrictSpatial}};
+    // MultiPlane accepts weight_mask but does not use it, so it does not request its frames.
+    VSFilterDependency deps[] = {{node, rpStrictSpatial}, {weight_mask, rpStrictSpatial}};
+    const int num_deps = (weight_mask && mode != LINREG_MODE_MULTI) ? 2 : 1;
 
     switch (mode) {
         case LINREG_MODE_SINGLE:
-            vsapi->createVideoFilter(out, "SinglePlane", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, d, core);
+            vsapi->createVideoFilter(out, "SinglePlane", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, num_deps, d, core);
             break;
         case LINREG_MODE_MULTI:
-            vsapi->createVideoFilter(out, "MultiPlane", vi, multiPlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, d, core);
+            vsapi->createVideoFilter(out, "MultiPlane", vi, multiPlaneGetFrame, linearRegressionFree, fmParallel, deps, num_deps, d, core);
             break;
         case LINREG_MODE_SINGLE_LIMITED:
-            vsapi->createVideoFilter(out, "SinglePlaneLimited", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, d, core);
+            vsapi->createVideoFilter(out, "SinglePlaneLimited", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, num_deps, d, core);
             break;
         case LINREG_MODE_SINGLE_WEIGHTED:
-            vsapi->createVideoFilter(out, "SinglePlaneWeighted", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, 1, d, core);
+            vsapi->createVideoFilter(out, "SinglePlaneWeighted", vi, singlePlaneGetFrame, linearRegressionFree, fmParallel, deps, num_deps, d, core);
             break;
         case LINREG_MODE_SINGLE_DEBUG:
-            vsapi->createVideoFilter(out, "SinglePlaneDebug", vi, singlePlaneDebugGetFrame, linearRegressionFree, fmParallel, deps, 1, d, core);
+            vsapi->createVideoFilter(out, "SinglePlaneDebug", vi, singlePlaneDebugGetFrame, linearRegressionFree, fmParallel, deps, num_deps, d, core);
             break;
     }
+    return;
+
+fail:
+    vsapi->mapSetError(out, error);
+    vsapi->freeNode(node);
+    vsapi->freeNode(weight_mask);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
