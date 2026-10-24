@@ -24,7 +24,6 @@ typedef struct
 {
     LinearRegressionData data;
     AVS_Clip* weight_mask;
-    int debug; // bore_SinglePlaneDebug: store fit results as frame properties
 } AVS_LinearRegressionData;
 
 static AVS_FORCEINLINE int avs_plane(const int plane_in, const AVS_VideoInfo* vi)
@@ -127,7 +126,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
         params.wmaskp = reinterpret_cast<const float*>(g_avs_api->avs_get_read_ptr_p(weight_mask, AVS_DEFAULT_PLANE));
     }
 
-    processBorders(data, w, h, stride, dstp, &params, d->debug ? frame : nullptr, fi->env);
+    processBorders(data, w, h, stride, dstp, &params, data->mode == LINREG_MODE_SINGLE_DEBUG ? frame : nullptr, fi->env);
 
     boreScratchFree(scratch);
     if (weight_mask)
@@ -379,7 +378,6 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
             fi->get_frame = singlePlaneGetFrame;
             break;
         case LINREG_MODE_SINGLE_DEBUG:
-            d->debug = 1;
             if (weight_mask)
             {
                 d->data.processRow = &debugRowSLRMasked;

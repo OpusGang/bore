@@ -34,7 +34,6 @@ typedef struct {
     LinearRegressionData data;
     VSNode *node;
     VSNode *weight_mask;
-    int debug; // SinglePlaneDebug: store fit results as frame properties
 } VS_LinearRegressionData;
 
 static void set_frame_props(VSFrame* frame, const double* props, const VSAPI* vsapi)
@@ -121,7 +120,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
             params.wmaskp = (const float*) vsapi->getReadPtr(weight_mask, 0);
         }
 
-        processBorders(data, w, h, stride, dstp, &params, d->debug ? dst : NULL, vsapi);
+        processBorders(data, w, h, stride, dstp, &params, data->mode == LINREG_MODE_SINGLE_DEBUG ? dst : NULL, vsapi);
 
         boreScratchFree(scratch);
         vsapi->freeFrame(weight_mask);
@@ -384,7 +383,6 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
             }
             break;
         case LINREG_MODE_SINGLE_DEBUG:
-            d->debug = 1;
             if (weight_mask) {
                 d->data.processRow = &debugRowSLRMasked;
                 d->data.processColumn = &debugColumnSLRMasked;
