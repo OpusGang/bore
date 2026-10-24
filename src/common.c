@@ -464,6 +464,77 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
     }
 }
 
+// Per-pixel fit of ref ~= c1 * cur over the window [i - r, i + r] of a line, i.e.
+// c1 = sum(w * x * y) / sum(w * x * x) (w = 1 if weights is NULL), the same quantity
+// gsl_fit_mul / gsl_fit_wmul compute. The window sums are updated incrementally, so a
+// line costs O(n) instead of O(n * r); results can differ from GSL in the last bits.
+// Windows containing non-finite terms fall back to GSL to keep its exact behaviour.
+static void slidingWindowFit(const double* __restrict cur, const double* __restrict ref, const double* __restrict weights,
+    int n, int r, float* __restrict dstp, ptrdiff_t dst_step)
+{
+    double sxy = 0.0, sxx = 0.0;
+    int nonzero = 0;   // terms with w * x * x != 0 in the window (all zero -> fit undefined)
+    int nonfinite = 0; // terms that are not finite (not included in the sums)
+    int lo = 0, hi = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        int start = i - r;
+        int stop = i + r + 1;
+        if (start < 0)
+            start = 0;
+        if (stop > n)
+            stop = n;
+
+        for (; hi < stop; hi++)
+        {
+            const double wx = weights ? weights[hi] * cur[hi] : cur[hi];
+            const double txy = wx * ref[hi];
+            const double txx = wx * cur[hi];
+            if (isfinite(txy) && isfinite(txx))
+            {
+                sxy += txy;
+                sxx += txx;
+                nonzero += txx != 0.0;
+            }
+            else
+                nonfinite++;
+        }
+        for (; lo < start; lo++)
+        {
+            const double wx = weights ? weights[lo] * cur[lo] : cur[lo];
+            const double txy = wx * ref[lo];
+            const double txx = wx * cur[lo];
+            if (isfinite(txy) && isfinite(txx))
+            {
+                sxy -= txy;
+                sxx -= txx;
+                nonzero -= txx != 0.0;
+            }
+            else
+                nonfinite--;
+        }
+
+        double c1;
+        if (nonfinite)
+        {
+            double cov11, sumsq;
+            int status = weights
+                ? gsl_fit_wmul(cur + start, 1, weights + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq)
+                : gsl_fit_mul(cur + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+            if (status)
+                continue;
+        }
+        else if (nonzero)
+            c1 = sxy / sxx;
+        else
+            continue;
+
+        if (isfinite(c1))
+            dstp[i * dst_step] *= (float)c1;
+    }
+}
+
 void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
     const int ref_line_size = p->ref_line_size;
@@ -473,11 +544,6 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
         sign = -1;
 
     int i;
-    int start, stop;
-    int status;
-
-    double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
@@ -489,20 +555,7 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
         ref[i] = dstp[sign * stride + i];
     }
 
-    for (i = 0; i < w; i++)
-    {
-        start = i - ref_line_size;
-        stop = i + ref_line_size + 1;
-        if (start < 0)
-            start = 0;
-        if (stop > w)
-            stop = w;
-
-        status = gsl_fit_mul(cur + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
-
-        if (!status && isfinite(c1))
-            dstp[i] *= (float)c1;
-    }
+    slidingWindowFit(cur, ref, NULL, w, ref_line_size, dstp, 1);
 }
 
 void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -514,11 +567,6 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
         sign = -1;
 
     int i;
-    int start, stop;
-    int status;
-
-    double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
@@ -530,20 +578,7 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
         ref[i] = dstp[sign + stride * i];
     }
 
-    for (i = 0; i < h; i++)
-    {
-        start = i - ref_line_size;
-        stop = i + ref_line_size + 1;
-        if (start < 0)
-            start = 0;
-        if (stop > h)
-            stop = h;
-
-        status = gsl_fit_mul(cur + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
-
-        if (!status && isfinite(c1))
-            dstp[i * stride] *= (float)c1;
-    }
+    slidingWindowFit(cur, ref, NULL, h, ref_line_size, dstp, stride);
 }
 
 void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -558,16 +593,10 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
         sign = -1;
 
     int i;
-    int start, stop;
-    int status;
-
-    double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
     double* const weights = p->scratch->weights;
-
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -578,20 +607,7 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
         weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
     }
 
-    for (i = 0; i < w; i++)
-    {
-        start = i - ref_line_size;
-        stop = i + ref_line_size + 1;
-        if (start < 0)
-            start = 0;
-        if (stop > w)
-            stop = w;
-
-        status = gsl_fit_wmul(cur + start, 1, weights + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
-
-        if (!status && isfinite(c1))
-            dstp[i] *= (float)c1;
-    }
+    slidingWindowFit(cur, ref, weights, w, ref_line_size, dstp, 1);
 }
 
 void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -606,16 +622,10 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
         sign = -1;
 
     int i;
-    int start, stop;
-    int status;
-
-    double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
     double* const weights = p->scratch->weights;
-
 
     wmaskp += column;
     dstp += column;
@@ -626,20 +636,7 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
         weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
     }
 
-    for (i = 0; i < h; i++)
-    {
-        start = i - ref_line_size;
-        stop = i + ref_line_size + 1;
-        if (start < 0)
-            start = 0;
-        if (stop > h)
-            stop = h;
-
-        status = gsl_fit_wmul(cur + start, 1, weights + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
-
-        if (!status && isfinite(c1))
-            dstp[i * stride] *= (float)c1;
-    }
+    slidingWindowFit(cur, ref, weights, h, ref_line_size, dstp, stride);
 }
 
 // Fills the per-line ratio buffer ref[i] / cur[i] used by the weighted fits.
