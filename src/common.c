@@ -23,7 +23,7 @@
 void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -61,7 +61,7 @@ void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
 void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -110,7 +110,7 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
     va_end(args);
 
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -164,7 +164,7 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
     va_end(args);
 
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -207,7 +207,7 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
 void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq)
 {
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -237,7 +237,7 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
 void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq)
 {
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -268,7 +268,7 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
 {
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -304,7 +304,7 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
 {
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     double* cur, * ref;
@@ -340,7 +340,7 @@ void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* 
 {
     int i;
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     dstp += stride * row;
@@ -384,7 +384,7 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
     int i;
     int j;
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
 
@@ -428,7 +428,7 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
     va_end(args);
 
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     int i;
@@ -476,7 +476,7 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
     va_end(args);
 
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     int i;
@@ -530,7 +530,7 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     va_end(args);
 
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     int i;
@@ -590,7 +590,7 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     va_end(args);
 
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     int i;
@@ -647,7 +647,7 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
     va_end(args);
 
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     int i;
@@ -723,7 +723,7 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
     va_end(args);
 
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     int i;
@@ -789,7 +789,7 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     va_end(args);
 
     int sign = 1;
-    if (row > h / 2)
+    if (row >= h / 2)
         sign = -1;
 
     int i;
@@ -871,7 +871,7 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
     va_end(args);
 
     int sign = 1;
-    if (column > w / 2)
+    if (column >= w / 2)
         sign = -1;
 
     int i;

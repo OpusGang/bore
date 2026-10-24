@@ -549,11 +549,10 @@ def test_invalid_args_raise_cleanly(core, case):
     assert out.startswith("VSERROR"), out
 
 
-@pytest.mark.xfail(reason="sign uses `row > h / 2` / `column > w / 2`: with bottom == h/2 (right == w/2) and even "
-                          "size, the innermost border line references the line *outward* instead of inward",
-                   strict=False)
 @pytest.mark.parametrize("side", ("bottom", "right"))
 def test_max_border_references_inner_line(core, side):
+    """Regression: with bottom == h/2 (right == w/2) and even size, the innermost border
+    line used to reference the line *outward* instead of inward (`row > h / 2`)."""
     deg = degrade(smooth_image(W, H, seed=31), **{side: 2})
     src = gray_clip(core, deg)
     if side == "bottom":
