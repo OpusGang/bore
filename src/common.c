@@ -455,8 +455,8 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= w)
-            stop = w - 1;
+        if (stop > w)
+            stop = w;
 
         status = gsl_fit_mul(cur + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
@@ -503,8 +503,8 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= h)
-            stop = h - 1;
+        if (stop > h)
+            stop = h;
 
         status = gsl_fit_mul(cur + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
@@ -562,8 +562,8 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= w)
-            stop = w - 1;
+        if (stop > w)
+            stop = w;
 
         status = gsl_fit_wmul(cur + start, 1, weights + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
@@ -622,8 +622,8 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= h)
-            stop = h - 1;
+        if (stop > h)
+            stop = h;
 
         status = gsl_fit_wmul(cur + start, 1, weights + start, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
@@ -679,8 +679,8 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= w)
-            stop = w - 1;
+        if (stop > w)
+            stop = w;
 
         double* weights;
         weights = malloc(sizeof(double) * (stop - start));
@@ -751,8 +751,8 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= h)
-            stop = h - 1;
+        if (stop > h)
+            stop = h;
 
         double* weights;
         weights = malloc(sizeof(double) * (stop - start));
@@ -828,8 +828,8 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= w)
-            stop = w - 1;
+        if (stop > w)
+            stop = w;
 
         for (k = 0; k < stop - start; k++)
         {
@@ -908,8 +908,8 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
         stop = i + ref_line_size + 1;
         if (start < 0)
             start = 0;
-        if (stop >= h)
-            stop = h - 1;
+        if (stop > h)
+            stop = h;
 
         for (k = 0; k < stop - start; k++)
         {

@@ -228,13 +228,30 @@ def test_weighted_huge_sigmas_matches_limited(core):
     np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-6)
 
 
-@pytest.mark.xfail(reason="window end clamp `stop = w - 1` drops the last sample of each line, "
-                          "so a window covering the whole line differs from SinglePlane", strict=False)
 def test_limited_full_window_equals_single(core):
+    """Regression: the window end clamp used to drop the last sample of each line."""
     src = gray_clip(core, degrade(smooth_image(W, H), top=2, left=2))
     a = get_planes(core.bore.SinglePlaneLimited(src, top=2, left=2, ref_line_size=1000))[0]
     b = get_planes(core.bore.SinglePlane(src, top=2, left=2))[0]
     np.testing.assert_allclose(a, b, rtol=1e-6)
+
+
+@pytest.mark.parametrize("name", ("SinglePlaneLimited", "SinglePlaneWeighted"))
+@pytest.mark.parametrize("masked", [False, True])
+def test_zero_ref_line_size_corrects_every_pixel(core, name, masked):
+    """ref_line_size=0 -> per-pixel gain ref/cur, including the last pixel of each line
+    (whose window used to be empty, leaving it uncorrected)."""
+    clean = smooth_image(W, H, seed=5)
+    deg = degrade(clean, top=1, right=1, factors=(0.7,))
+    kw = dict(top=1, right=1, ref_line_size=0)
+    if masked:
+        kw["weight_mask"] = gray_clip(core, np.ones((H, W), np.float32))
+    out = get_planes(getattr(core.bore, name)(gray_clip(core, deg), **kw))[0]
+    # top row: each pixel scaled to its reference row 1 -> out[0] == deg[1] (up to float rounding)
+    np.testing.assert_allclose(out[0, :W - 1], deg[1, :W - 1], rtol=1e-5)
+    # right column processed after the top row
+    np.testing.assert_allclose(out[1:, W - 1], deg[1:, W - 2], rtol=1e-5)
+    np.testing.assert_allclose(out[0, W - 1], out[0, W - 2], rtol=1e-5)
 
 
 # --------------------------------------------------------------------------
