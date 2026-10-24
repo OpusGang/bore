@@ -661,15 +661,11 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
     int i;
     int k;
     int start, stop;
-    int status;
-
     double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
     double* const ratio = p->scratch->ratio;
-    double* const weights = p->scratch->weights;
 
     dstp += row * stride;
     for (i = 0; i < w; i++)
@@ -688,15 +684,19 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
         if (stop > w)
             stop = w;
 
+        double sxy = 0.0, sxx = 0.0;
         for (k = start; k < stop; k++)
         {
             // exp(a) * exp(b) * exp(c) evaluated as exp(a + b + c)
-            weights[k - start] = exp(spatial_exponent[k - i] - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / sigmaR2 - (ratio[k] - ratio[i]) * (ratio[k] - ratio[i]) / sigmaD2);
+            const double wt = exp(spatial_exponent[k - i] - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / sigmaR2 - (ratio[k] - ratio[i]) * (ratio[k] - ratio[i]) / sigmaD2);
+            sxy += wt * cur[k] * ref[k];
+            sxx += wt * cur[k] * cur[k];
         }
 
-        status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+        // weighted least squares through the origin (what gsl_fit_wmul computes)
+        c1 = sxy / sxx;
 
-        if (!status && isfinite(c1))
+        if (isfinite(c1))
             dstp[i] *= (float)c1;
     }
 }
@@ -716,15 +716,11 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
     int i;
     int k;
     int start, stop;
-    int status;
-
     double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
     double* const ratio = p->scratch->ratio;
-    double* const weights = p->scratch->weights;
 
     dstp += column;
     for (i = 0; i < h; i++)
@@ -743,14 +739,18 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
         if (stop > h)
             stop = h;
 
+        double sxy = 0.0, sxx = 0.0;
         for (k = start; k < stop; k++)
         {
-            weights[k - start] = exp(spatial_exponent[k - i] - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / sigmaR2 - (ratio[k] - ratio[i]) * (ratio[k] - ratio[i]) / sigmaD2);
+            const double wt = exp(spatial_exponent[k - i] - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / sigmaR2 - (ratio[k] - ratio[i]) * (ratio[k] - ratio[i]) / sigmaD2);
+            sxy += wt * cur[k] * ref[k];
+            sxx += wt * cur[k] * cur[k];
         }
 
-        status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+        // weighted least squares through the origin (what gsl_fit_wmul computes)
+        c1 = sxy / sxx;
 
-        if (!status && isfinite(c1))
+        if (isfinite(c1))
             dstp[i * stride] *= (float)c1;
     }
 }
@@ -773,15 +773,11 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     int j;
     int k;
     int start, stop;
-    int status;
-
     double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
     double* const ratio = p->scratch->ratio;
-    double* const weights = p->scratch->weights;
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -803,17 +799,21 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
         if (stop > w)
             stop = w;
 
+        double sxy = 0.0, sxx = 0.0;
         for (k = 0; k < stop - start; k++)
         {
             j = k + start;
 
             // exp(a) * exp(b) * exp(c) evaluated as exp(a + b + c)
-            weights[k] = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j] * wmaskp[sign * wmaskstride + j];
+            const double wt = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j] * wmaskp[sign * wmaskstride + j];
+            sxy += wt * cur[j] * ref[j];
+            sxx += wt * cur[j] * cur[j];
         }
 
-        status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+        // weighted least squares through the origin (what gsl_fit_wmul computes)
+        c1 = sxy / sxx;
 
-        if (!status && isfinite(c1))
+        if (isfinite(c1))
             dstp[i] *= (float)c1;
     }
 }
@@ -836,15 +836,11 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
     int j;
     int k;
     int start, stop;
-    int status;
-
     double c1;
-    double cov11, sumsq;
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
     double* const ratio = p->scratch->ratio;
-    double* const weights = p->scratch->weights;
 
     wmaskp += column;
     dstp += column;
@@ -866,17 +862,21 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
         if (stop > h)
             stop = h;
 
+        double sxy = 0.0, sxx = 0.0;
         for (k = 0; k < stop - start; k++)
         {
             j = k + start;
 
             // exp(a) * exp(b) * exp(c) evaluated as exp(a + b + c)
-            weights[k] = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j * wmaskstride] * wmaskp[sign + wmaskstride * j];
+            const double wt = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j * wmaskstride] * wmaskp[sign + wmaskstride * j];
+            sxy += wt * cur[j] * ref[j];
+            sxx += wt * cur[j] * cur[j];
         }
 
-        status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
+        // weighted least squares through the origin (what gsl_fit_wmul computes)
+        c1 = sxy / sxx;
 
-        if (!status && isfinite(c1))
+        if (isfinite(c1))
             dstp[i * stride] *= (float)c1;
     }
 }
