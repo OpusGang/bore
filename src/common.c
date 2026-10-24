@@ -30,8 +30,9 @@ void boreInit(void)
     gsl_set_error_handler_off();
 }
 
-void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
+    (void)p;
     int sign = 1;
     if (row >= h / 2)
         sign = -1;
@@ -68,8 +69,9 @@ void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
     free(ref);
 }
 
-void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
+    (void)p;
     int sign = 1;
     if (column >= w / 2)
         sign = -1;
@@ -106,18 +108,11 @@ void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restr
     free(ref);
 }
 
-void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    (void) va_arg(args, int);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    const float* wmaskp = va_arg(args, const float*);
-    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
-    const int mask_dist = va_arg(args, int);
-    va_end(args);
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
 
     int sign = 1;
     if (row >= h / 2)
@@ -160,18 +155,11 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
     free(weights);
 }
 
-void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    (void) va_arg(args, int);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    const float* wmaskp = va_arg(args, const float*);
-    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
-    const int mask_dist = va_arg(args, int);
-    va_end(args);
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
 
     int sign = 1;
     if (column >= w / 2)
@@ -214,8 +202,9 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
     free(weights);
 }
 
-void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq)
+void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
+    double* c1_cov11_sumsq = p->c1_cov11_sumsq;
     int sign = 1;
     if (row >= h / 2)
         sign = -1;
@@ -244,8 +233,9 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
     free(ref);
 }
 
-void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq)
+void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
+    double* c1_cov11_sumsq = p->c1_cov11_sumsq;
     int sign = 1;
     if (column >= w / 2)
         sign = -1;
@@ -274,9 +264,12 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
     free(ref);
 }
 
-void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
-    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
+void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
+    double* c1_cov11_sumsq = p->c1_cov11_sumsq;
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
     int sign = 1;
     if (row >= h / 2)
         sign = -1;
@@ -310,9 +303,12 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     free(weights);
 }
 
-void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, double* c1_cov11_sumsq,
-    const float* __restrict wmaskp, ptrdiff_t wmaskstride, int mask_dist)
+void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
+    double* c1_cov11_sumsq = p->c1_cov11_sumsq;
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
     int sign = 1;
     if (column >= w / 2)
         sign = -1;
@@ -430,12 +426,9 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
     gsl_vector_free(y);
 }
 
-void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
 
     int sign = 1;
     if (row >= h / 2)
@@ -478,12 +471,9 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
     free(ref);
 }
 
-void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
 
     int sign = 1;
     if (column >= w / 2)
@@ -526,18 +516,12 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
     free(ref);
 }
 
-void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    const float* wmaskp = va_arg(args, const float*);
-    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
-    const int mask_dist = va_arg(args, int);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
 
     int sign = 1;
     if (row >= h / 2)
@@ -586,18 +570,12 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     free(weights);
 }
 
-void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    (void) va_arg(args, double);
-    const float* wmaskp = va_arg(args, const float*);
-    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
-    const int mask_dist = va_arg(args, int);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
 
     int sign = 1;
     if (column >= w / 2)
@@ -646,15 +624,12 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     free(weights);
 }
 
-void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    const double sigmaS = va_arg(args, double);
-    const double sigmaR = va_arg(args, double);
-    const double sigmaD = va_arg(args, double);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
+    const double sigmaS = p->sigmaS;
+    const double sigmaR = p->sigmaR;
+    const double sigmaD = p->sigmaD;
 
     int sign = 1;
     if (row >= h / 2)
@@ -722,15 +697,12 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
     free(ref);
 }
 
-void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    const double sigmaS = va_arg(args, double);
-    const double sigmaR = va_arg(args, double);
-    const double sigmaD = va_arg(args, double);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
+    const double sigmaS = p->sigmaS;
+    const double sigmaR = p->sigmaR;
+    const double sigmaD = p->sigmaD;
 
     int sign = 1;
     if (column >= w / 2)
@@ -785,18 +757,15 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
 }
 
 
-void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    const double sigmaS = va_arg(args, double);
-    const double sigmaR = va_arg(args, double);
-    const double sigmaD = va_arg(args, double);
-    const float* wmaskp = va_arg(args, const float*);
-    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
-    const int mask_dist = va_arg(args, int);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
+    const double sigmaS = p->sigmaS;
+    const double sigmaR = p->sigmaR;
+    const double sigmaD = p->sigmaD;
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
 
     int sign = 1;
     if (row >= h / 2)
@@ -867,18 +836,15 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     free(ref);
 }
 
-void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
+void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    va_list args;
-    va_start(args, dstp);
-    const int ref_line_size = va_arg(args, int);
-    const double sigmaS = va_arg(args, double);
-    const double sigmaR = va_arg(args, double);
-    const double sigmaD = va_arg(args, double);
-    const float* wmaskp = va_arg(args, const float*);
-    const ptrdiff_t wmaskstride = va_arg(args, ptrdiff_t);
-    const int mask_dist = va_arg(args, int);
-    va_end(args);
+    const int ref_line_size = p->ref_line_size;
+    const double sigmaS = p->sigmaS;
+    const double sigmaR = p->sigmaR;
+    const double sigmaD = p->sigmaD;
+    const float* wmaskp = p->wmaskp;
+    const ptrdiff_t wmaskstride = p->wmaskstride;
+    const int mask_dist = p->mask_dist;
 
     int sign = 1;
     if (column >= w / 2)
