@@ -97,7 +97,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
     float* __restrict dstp{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, plane)) };
     double c1_cov11_sumsq[3]{ 0.0 };
 
-    BoreScratch* scratch{ boreScratchAlloc(w, h) };
+    BoreScratch* scratch{ boreScratchAlloc(w, h, 0) };
     if (!scratch)
     {
         g_avs_api->avs_release_video_frame(frame);
@@ -156,14 +156,24 @@ static AVS_VideoFrame* AVSC_CC multiPlaneGetFrame(AVS_FilterInfo* fi, int n)
     float* dstp2{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, avs_plane(1, &fi->vi))) };
     float* dstp3{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, avs_plane(2, &fi->vi))) };
 
+    BoreScratch* scratch{ boreScratchAlloc(w, h, 1) };
+    if (!scratch)
+    {
+        g_avs_api->avs_release_video_frame(frame);
+        fi->error = "bore: out of memory";
+        return nullptr;
+    }
+
     for (int row{ data->top - 1 }; row > -1; --row)
-        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3);
+        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
     for (int row{ h - data->bottom }; row < h; ++row)
-        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3);
+        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
     for (int column{ data->left - 1 }; column > -1; --column)
-        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
+        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
     for (int column{ w - data->right }; column < w; ++column)
-        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
+        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+
+    boreScratchFree(scratch);
 
     return frame;
 }

@@ -98,7 +98,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         float* __restrict dstp = (float *) vsapi->getWritePtr(dst, plane);
         double c1_cov11_sumsq[3] = { 0.0 };
 
-        BoreScratch* scratch = boreScratchAlloc(w, h);
+        BoreScratch* scratch = boreScratchAlloc(w, h, 0);
         if (!scratch) {
             vsapi->setFilterError("bore: out of memory", frameCtx);
             vsapi->freeFrame(dst);
@@ -154,15 +154,24 @@ static const VSFrame *VS_CC multiPlaneGetFrame(int n, int activationReason, void
         float* dstp2 = (float*)vsapi->getWritePtr(dst, 1);
         float* dstp3 = (float*)vsapi->getWritePtr(dst, 2);
 
-        for (int row = data->top - 1; row > -1; --row)
-            processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3);
-        for (int row = h - data->bottom; row < h; ++row)
-            processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3);
-        for (int column = data->left - 1; column > -1; --column)
-            processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
-        for (int column = w - data->right; column < w; ++column)
-            processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3);
+        BoreScratch* scratch = boreScratchAlloc(w, h, 1);
+        if (!scratch) {
+            vsapi->setFilterError("bore: out of memory", frameCtx);
+            vsapi->freeFrame(dst);
+            vsapi->freeFrame(src);
+            return NULL;
+        }
 
+        for (int row = data->top - 1; row > -1; --row)
+            processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        for (int row = h - data->bottom; row < h; ++row)
+            processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        for (int column = data->left - 1; column > -1; --column)
+            processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        for (int column = w - data->right; column < w; ++column)
+            processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+
+        boreScratchFree(scratch);
         vsapi->freeFrame(src);
 
         return dst;

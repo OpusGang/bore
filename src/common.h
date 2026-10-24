@@ -36,7 +36,7 @@ extern "C" {
     // Per-frame scratch buffers, sized for the longest line of the plane.
     typedef struct BoreScratch BoreScratch;
 
-    BoreScratch* boreScratchAlloc(int w, int h);
+    BoreScratch* boreScratchAlloc(int w, int h, int multi); // multi: MultiPlane buffers
     void boreScratchFree(BoreScratch* s);
 
     // Per-line parameters passed to the line processing functions.
@@ -80,8 +80,8 @@ extern "C" {
     void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
-    void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
-    void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3);
+    void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch);
+    void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch);
     void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);

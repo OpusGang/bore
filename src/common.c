@@ -35,22 +35,45 @@ struct BoreScratch
     double* cur;
     double* ref;
     double* weights;
+
+    // MultiPlane only
+    gsl_matrix* x;
+    gsl_vector* y;
+    gsl_vector* b;
+    gsl_matrix* cov;
+    gsl_multifit_linear_workspace* ws;
 };
 
-BoreScratch* boreScratchAlloc(int w, int h)
+BoreScratch* boreScratchAlloc(int w, int h, int multi)
 {
     const size_t n = (size_t)(w > h ? w : h);
     BoreScratch* s = calloc(1, sizeof(BoreScratch));
     if (!s)
         return NULL;
 
-    s->cur = malloc(sizeof(double) * n);
-    s->ref = malloc(sizeof(double) * n);
-    s->weights = malloc(sizeof(double) * n);
-    if (!s->cur || !s->ref || !s->weights)
+    if (multi)
     {
-        boreScratchFree(s);
-        return NULL;
+        s->x = gsl_matrix_alloc(n, 3);
+        s->y = gsl_vector_alloc(n);
+        s->b = gsl_vector_alloc(3);
+        s->cov = gsl_matrix_alloc(3, 3);
+        s->ws = gsl_multifit_linear_alloc(n, 3);
+        if (!s->x || !s->y || !s->b || !s->cov || !s->ws)
+        {
+            boreScratchFree(s);
+            return NULL;
+        }
+    }
+    else
+    {
+        s->cur = malloc(sizeof(double) * n);
+        s->ref = malloc(sizeof(double) * n);
+        s->weights = malloc(sizeof(double) * n);
+        if (!s->cur || !s->ref || !s->weights)
+        {
+            boreScratchFree(s);
+            return NULL;
+        }
     }
 
     return s;
@@ -64,6 +87,16 @@ void boreScratchFree(BoreScratch* s)
     free(s->cur);
     free(s->ref);
     free(s->weights);
+    if (s->x)
+        gsl_matrix_free(s->x);
+    if (s->y)
+        gsl_vector_free(s->y);
+    if (s->b)
+        gsl_vector_free(s->b);
+    if (s->cov)
+        gsl_matrix_free(s->cov);
+    if (s->ws)
+        gsl_multifit_linear_free(s->ws);
     free(s);
 }
 
@@ -337,7 +370,7 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     }
 }
 
-void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3)
+void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch)
 {
     int i;
     int sign = 1;
@@ -348,21 +381,19 @@ void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* 
     dstp1 += stride * row;
     dstp2 += stride * row;
     dstp3 += stride * row;
-    gsl_vector* y = gsl_vector_alloc(w);
-    gsl_matrix* x = gsl_matrix_alloc(w, 3);
+    gsl_vector_view y = gsl_vector_subvector(scratch->y, 0, w);
+    gsl_matrix_view x = gsl_matrix_submatrix(scratch->x, 0, 0, w, 3);
     for (i = 0; i < w; i++)
     {
-        gsl_vector_set(y, i, dstp[i + stride * sign]);
-        gsl_matrix_set(x, i, 0, dstp1[i]);
-        gsl_matrix_set(x, i, 1, dstp2[i]);
-        gsl_matrix_set(x, i, 2, dstp3[i]);
+        gsl_vector_set(&y.vector, i, dstp[i + stride * sign]);
+        gsl_matrix_set(&x.matrix, i, 0, dstp1[i]);
+        gsl_matrix_set(&x.matrix, i, 1, dstp2[i]);
+        gsl_matrix_set(&x.matrix, i, 2, dstp3[i]);
     }
 
-    gsl_multifit_linear_workspace* ws = gsl_multifit_linear_alloc(w, 3);
     double chisq;
-    gsl_matrix* cov = gsl_matrix_alloc(3, 3);
-    gsl_vector* b = gsl_vector_alloc(3);
-    int status = gsl_multifit_linear(x, y, b, cov, &chisq, ws);
+    gsl_vector* b = scratch->b;
+    int status = gsl_multifit_linear(&x.matrix, &y.vector, b, scratch->cov, &chisq, scratch->ws);
 
     if (!status)
     {
@@ -372,15 +403,9 @@ void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* 
             dstp[i] = (float)(gsl_vector_get(b, 0) * dstp1[i] + gsl_vector_get(b, 1) * dstp2[i] + gsl_vector_get(b, 2) * dstp3[i]);
         }
     }
-
-    gsl_vector_free(b);
-    gsl_matrix_free(cov);
-    gsl_multifit_linear_free(ws);
-    gsl_matrix_free(x);
-    gsl_vector_free(y);
 }
 
-void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3)
+void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch)
 {
     int i;
     int j;
@@ -388,21 +413,19 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
     if (column >= w / 2)
         sign = -1;
 
-
-    gsl_vector* y = gsl_vector_alloc(h);
-    gsl_matrix* x = gsl_matrix_alloc(h, 3);
+    gsl_vector_view y = gsl_vector_subvector(scratch->y, 0, h);
+    gsl_matrix_view x = gsl_matrix_submatrix(scratch->x, 0, 0, h, 3);
     for (i = 0; i < h; i++)
     {
-        gsl_vector_set(y, i, dstp[i * stride + column + sign]);
-        gsl_matrix_set(x, i, 0, dstp1[i * stride + column]);
-        gsl_matrix_set(x, i, 1, dstp2[i * stride + column]);
-        gsl_matrix_set(x, i, 2, dstp3[i * stride + column]);
+        gsl_vector_set(&y.vector, i, dstp[i * stride + column + sign]);
+        gsl_matrix_set(&x.matrix, i, 0, dstp1[i * stride + column]);
+        gsl_matrix_set(&x.matrix, i, 1, dstp2[i * stride + column]);
+        gsl_matrix_set(&x.matrix, i, 2, dstp3[i * stride + column]);
     }
-    gsl_multifit_linear_workspace* ws = gsl_multifit_linear_alloc(h, 3);
+
     double chisq;
-    gsl_matrix* cov = gsl_matrix_alloc(3, 3);
-    gsl_vector* b = gsl_vector_alloc(3);
-    int status = gsl_multifit_linear(x, y, b, cov, &chisq, ws);
+    gsl_vector* b = scratch->b;
+    int status = gsl_multifit_linear(&x.matrix, &y.vector, b, scratch->cov, &chisq, scratch->ws);
 
     if (!status)
     {
@@ -413,12 +436,6 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
             dstp[j] = (float)(gsl_vector_get(b, 0) * dstp1[j] + gsl_vector_get(b, 1) * dstp2[j] + gsl_vector_get(b, 2) * dstp3[j]);
         }
     }
-
-    gsl_vector_free(b);
-    gsl_matrix_free(cov);
-    gsl_multifit_linear_free(ws);
-    gsl_matrix_free(x);
-    gsl_vector_free(y);
 }
 
 void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
