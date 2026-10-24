@@ -97,12 +97,21 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
     float* __restrict dstp{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, plane)) };
     double c1_cov11_sumsq[3]{ 0.0 };
 
+    BoreScratch* scratch{ boreScratchAlloc(w, h) };
+    if (!scratch)
+    {
+        g_avs_api->avs_release_video_frame(frame);
+        fi->error = "bore: out of memory";
+        return nullptr;
+    }
+
     BoreLineParams params{};
     params.ref_line_size = data->ref_line_size;
     params.sigmaS = data->sigmaS;
     params.sigmaR = data->sigmaR;
     params.sigmaD = data->sigmaD;
     params.c1_cov11_sumsq = c1_cov11_sumsq;
+    params.scratch = scratch;
 
     AVS_VideoFrame* weight_mask{ nullptr };
     if (d->weight_mask)
@@ -110,6 +119,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
         weight_mask = g_avs_api->avs_get_frame(d->weight_mask, n);
         if (!weight_mask)
         {
+            boreScratchFree(scratch);
             g_avs_api->avs_release_video_frame(frame);
             return nullptr;
         }
@@ -119,6 +129,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
 
     processBorders(data, w, h, stride, dstp, &params, d->debug ? frame : nullptr, fi->env);
 
+    boreScratchFree(scratch);
     if (weight_mask)
         g_avs_api->avs_release_video_frame(weight_mask);
 

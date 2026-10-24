@@ -30,18 +30,53 @@ void boreInit(void)
     gsl_set_error_handler_off();
 }
 
+struct BoreScratch
+{
+    double* cur;
+    double* ref;
+    double* weights;
+};
+
+BoreScratch* boreScratchAlloc(int w, int h)
+{
+    const size_t n = (size_t)(w > h ? w : h);
+    BoreScratch* s = calloc(1, sizeof(BoreScratch));
+    if (!s)
+        return NULL;
+
+    s->cur = malloc(sizeof(double) * n);
+    s->ref = malloc(sizeof(double) * n);
+    s->weights = malloc(sizeof(double) * n);
+    if (!s->cur || !s->ref || !s->weights)
+    {
+        boreScratchFree(s);
+        return NULL;
+    }
+
+    return s;
+}
+
+void boreScratchFree(BoreScratch* s)
+{
+    if (!s)
+        return;
+
+    free(s->cur);
+    free(s->ref);
+    free(s->weights);
+    free(s);
+}
+
 void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    (void)p;
     int sign = 1;
     if (row >= h / 2)
         sign = -1;
 
-    double* cur, * ref;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
     int i;
 
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
 
     dstp += row * stride;
     for (i = 0; i < w; i++)
@@ -64,23 +99,18 @@ void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
             dstp[i] *= (float)c1;
         }
     }
-
-    free(cur);
-    free(ref);
 }
 
 void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
-    (void)p;
     int sign = 1;
     if (column >= w / 2)
         sign = -1;
 
-    double* cur, * ref;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
     int i;
 
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
 
     dstp += column;
     for (i = 0; i < h; i++)
@@ -103,9 +133,6 @@ void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restr
             dstp[i * stride] *= (float)c1;
         }
     }
-
-    free(cur);
-    free(ref);
 }
 
 void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -118,13 +145,11 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
     if (row >= h / 2)
         sign = -1;
 
-    double* cur, * ref;
-    double* weights;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
     int i;
 
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
-    weights = malloc(sizeof(double) * w);
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -149,10 +174,6 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
             dstp[i] *= (float)c1;
         }
     }
-
-    free(cur);
-    free(ref);
-    free(weights);
 }
 
 void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -165,13 +186,11 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
     if (column >= w / 2)
         sign = -1;
 
-    double* cur, * ref;
-    double* weights;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
     int i;
 
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
-    weights = malloc(sizeof(double) * h);
 
     wmaskp += column;
     dstp += column;
@@ -196,10 +215,6 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
             dstp[i * stride] *= (float)c1;
         }
     }
-
-    free(cur);
-    free(ref);
-    free(weights);
 }
 
 void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -209,11 +224,10 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
     if (row >= h / 2)
         sign = -1;
 
-    double* cur, * ref;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
     int i;
 
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
 
     dstp += row * stride;
     for (i = 0; i < w; i++)
@@ -228,9 +242,6 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-
-    free(cur);
-    free(ref);
 }
 
 void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -240,11 +251,10 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
     if (column >= w / 2)
         sign = -1;
 
-    double* cur, * ref;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
     int i;
 
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
 
     dstp += column;
     for (i = 0; i < h; i++)
@@ -259,9 +269,6 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-
-    free(cur);
-    free(ref);
 }
 
 void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -274,13 +281,11 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     if (row >= h / 2)
         sign = -1;
 
-    double* cur, * ref;
-    double* weights;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
     int i;
 
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
-    weights = malloc(sizeof(double) * w);
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -297,10 +302,6 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-
-    free(cur);
-    free(ref);
-    free(weights);
 }
 
 void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -313,13 +314,11 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     if (column >= w / 2)
         sign = -1;
 
-    double* cur, * ref;
-    double* weights;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
     int i;
 
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
-    weights = malloc(sizeof(double) * h);
 
     wmaskp += column;
     dstp += column;
@@ -336,10 +335,6 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     {
         c1_cov11_sumsq[0] = 1.0;
     }
-
-    free(cur);
-    free(ref);
-    free(weights);
 }
 
 void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3)
@@ -441,9 +436,8 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
 
     dstp += row * stride;
     for (i = 0; i < w; i++)
@@ -466,9 +460,6 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
         if (!status && isfinite(c1))
             dstp[i] *= (float)c1;
     }
-
-    free(cur);
-    free(ref);
 }
 
 void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -486,9 +477,8 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
 
     dstp += column;
     for (i = 0; i < h; i++)
@@ -511,9 +501,6 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
         if (!status && isfinite(c1))
             dstp[i * stride] *= (float)c1;
     }
-
-    free(cur);
-    free(ref);
 }
 
 void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -534,12 +521,10 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    double* weights;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
 
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
-    weights = malloc(sizeof(double) * w);
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -564,10 +549,6 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
         if (!status && isfinite(c1))
             dstp[i] *= (float)c1;
     }
-
-    free(cur);
-    free(ref);
-    free(weights);
 }
 
 void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -588,12 +569,10 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    double* weights;
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
 
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
-    weights = malloc(sizeof(double) * h);
 
     wmaskp += column;
     dstp += column;
@@ -618,10 +597,6 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
         if (!status && isfinite(c1))
             dstp[i * stride] *= (float)c1;
     }
-
-    free(cur);
-    free(ref);
-    free(weights);
 }
 
 void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -643,9 +618,9 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
 
     dstp += row * stride;
     for (i = 0; i < w; i++)
@@ -667,9 +642,6 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
         if (stop > w)
             stop = w;
 
-        double* weights;
-        weights = malloc(sizeof(double) * (stop - start));
-
         for (k = start; k < stop; k++)
         {
             w_s = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS));
@@ -689,12 +661,7 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
 
         if (!status && isfinite(c1))
             dstp[i] *= (float)c1;
-
-        free(weights);
     }
-
-    free(cur);
-    free(ref);
 }
 
 void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -716,9 +683,9 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
+    double* const weights = p->scratch->weights;
 
     dstp += column;
     for (i = 0; i < h; i++)
@@ -736,9 +703,6 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
         if (stop > h)
             stop = h;
 
-        double* weights;
-        weights = malloc(sizeof(double) * (stop - start));
-
         for (k = start; k < stop; k++)
         {
             weights[k - start] = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS) - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / (sigmaR * sigmaR) - (ref[k] / cur[k] - ref[i] / cur[i]) * (ref[k] / cur[k] - ref[i] / cur[i]) / (sigmaD * sigmaD));
@@ -748,12 +712,7 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
 
         if (!status && isfinite(c1))
             dstp[i * stride] *= (float)c1;
-
-        free(weights);
     }
-
-    free(cur);
-    free(ref);
 }
 
 
@@ -780,9 +739,8 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    cur = malloc(sizeof(double) * w);
-    ref = malloc(sizeof(double) * w);
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -796,8 +754,7 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     double w_c;
     double w_d;
 
-    double* weights;
-    weights = malloc(sizeof(double) * (2 * ref_line_size + 1));
+    double* const weights = p->scratch->weights;
 
     sign *= mask_dist;
 
@@ -830,10 +787,6 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
             dstp[i] *= (float)c1;
 
     }
-
-    free(weights);
-    free(cur);
-    free(ref);
 }
 
 void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
@@ -859,12 +812,10 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
     double c1;
     double cov11, sumsq;
 
-    double* cur, * ref;
-    cur = malloc(sizeof(double) * h);
-    ref = malloc(sizeof(double) * h);
+    double* const cur = p->scratch->cur;
+    double* const ref = p->scratch->ref;
 
-    double* weights;
-    weights = malloc(sizeof(double) * (2 * ref_line_size + 1));
+    double* const weights = p->scratch->weights;
 
     wmaskp += column;
     dstp += column;
@@ -914,8 +865,4 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
             dstp[i * stride] *= (float)c1;
 
     }
-
-    free(weights);
-    free(cur);
-    free(ref);
 }

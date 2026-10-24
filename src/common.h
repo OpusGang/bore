@@ -33,6 +33,12 @@ extern "C" {
         LINREG_MODE_SINGLE_DEBUG = 5
     } LinRegMode;
 
+    // Per-frame scratch buffers, sized for the longest line of the plane.
+    typedef struct BoreScratch BoreScratch;
+
+    BoreScratch* boreScratchAlloc(int w, int h);
+    void boreScratchFree(BoreScratch* s);
+
     // Per-line parameters passed to the line processing functions.
     typedef struct
     {
@@ -44,6 +50,7 @@ extern "C" {
         ptrdiff_t wmaskstride;
         int mask_dist; // distance from the current line to the first unprocessed (clean) line
         double* c1_cov11_sumsq; // debug functions: fit results of the line
+        BoreScratch* scratch;
     } BoreLineParams;
 
     typedef void (*BoreLineFunc)(int line, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);

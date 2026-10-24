@@ -98,12 +98,21 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         float* __restrict dstp = (float *) vsapi->getWritePtr(dst, plane);
         double c1_cov11_sumsq[3] = { 0.0 };
 
+        BoreScratch* scratch = boreScratchAlloc(w, h);
+        if (!scratch) {
+            vsapi->setFilterError("bore: out of memory", frameCtx);
+            vsapi->freeFrame(dst);
+            vsapi->freeFrame(src);
+            return NULL;
+        }
+
         BoreLineParams params = {
             .ref_line_size = data->ref_line_size,
             .sigmaS = data->sigmaS,
             .sigmaR = data->sigmaR,
             .sigmaD = data->sigmaD,
-            .c1_cov11_sumsq = c1_cov11_sumsq
+            .c1_cov11_sumsq = c1_cov11_sumsq,
+            .scratch = scratch
         };
 
         if (d->weight_mask) {
@@ -114,6 +123,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
 
         processBorders(data, w, h, stride, dstp, &params, d->debug ? dst : NULL, vsapi);
 
+        boreScratchFree(scratch);
         vsapi->freeFrame(weight_mask);
         vsapi->freeFrame(src);
 
