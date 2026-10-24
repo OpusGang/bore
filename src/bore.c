@@ -98,7 +98,7 @@ static const VSFrame *VS_CC singlePlaneGetFrame(int n, int activationReason, voi
         float* __restrict dstp = (float *) vsapi->getWritePtr(dst, plane);
         double c1_cov11_sumsq[3] = { 0.0 };
 
-        BoreScratch* scratch = boreScratchAlloc(w, h, 0);
+        BoreScratch* scratch = boreScratchAlloc(data, w, h);
         if (!scratch) {
             vsapi->setFilterError("bore: out of memory", frameCtx);
             vsapi->freeFrame(dst);
@@ -154,7 +154,7 @@ static const VSFrame *VS_CC multiPlaneGetFrame(int n, int activationReason, void
         float* dstp2 = (float*)vsapi->getWritePtr(dst, 1);
         float* dstp3 = (float*)vsapi->getWritePtr(dst, 2);
 
-        BoreScratch* scratch = boreScratchAlloc(w, h, 1);
+        BoreScratch* scratch = boreScratchAlloc(data, w, h);
         if (!scratch) {
             vsapi->setFilterError("bore: out of memory", frameCtx);
             vsapi->freeFrame(dst);
@@ -344,6 +344,7 @@ static void VS_CC linearRegressionCreate(const VSMap *in, VSMap *out, void *user
     }
     d->node = node;
     d->weight_mask = weight_mask;
+    d->data.mode = mode;
     d->data.plane = plane;
     d->data.top = top;
     d->data.bottom = bottom;

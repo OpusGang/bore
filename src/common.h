@@ -33,11 +33,7 @@ extern "C" {
         LINREG_MODE_SINGLE_DEBUG = 5
     } LinRegMode;
 
-    // Per-frame scratch buffers, sized for the longest line of the plane.
     typedef struct BoreScratch BoreScratch;
-
-    BoreScratch* boreScratchAlloc(int w, int h, int multi); // multi: MultiPlane buffers
-    void boreScratchFree(BoreScratch* s);
 
     // Per-line parameters passed to the line processing functions.
     typedef struct
@@ -57,6 +53,7 @@ extern "C" {
 
     typedef struct
     {
+        LinRegMode mode;
         int plane;
         int top;
         int bottom;
@@ -71,6 +68,10 @@ extern "C" {
     } LinearRegressionData;
 
     void boreInit(void);
+
+    // Per-frame scratch buffers, sized for the longest line of the plane (w x h).
+    BoreScratch* boreScratchAlloc(const LinearRegressionData* d, int w, int h);
+    void boreScratchFree(BoreScratch* s);
 
     void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);

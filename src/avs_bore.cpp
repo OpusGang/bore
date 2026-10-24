@@ -97,7 +97,7 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
     float* __restrict dstp{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, plane)) };
     double c1_cov11_sumsq[3]{ 0.0 };
 
-    BoreScratch* scratch{ boreScratchAlloc(w, h, 0) };
+    BoreScratch* scratch{ boreScratchAlloc(data, w, h) };
     if (!scratch)
     {
         g_avs_api->avs_release_video_frame(frame);
@@ -156,7 +156,7 @@ static AVS_VideoFrame* AVSC_CC multiPlaneGetFrame(AVS_FilterInfo* fi, int n)
     float* dstp2{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, avs_plane(1, &fi->vi))) };
     float* dstp3{ reinterpret_cast<float*>(g_avs_api->avs_get_write_ptr_p(frame, avs_plane(2, &fi->vi))) };
 
-    BoreScratch* scratch{ boreScratchAlloc(w, h, 1) };
+    BoreScratch* scratch{ boreScratchAlloc(data, w, h) };
     if (!scratch)
     {
         g_avs_api->avs_release_video_frame(frame);
@@ -323,6 +323,7 @@ static AVS_Value AVSC_CC linearRegressionCreate(AVS_ScriptEnvironment* env, AVS_
         return set_error(clip, weight_mask, "bore: out of memory allocation filter data");
 
     d->weight_mask = weight_mask;
+    d->data.mode = static_cast<LinRegMode>(mode);
     d->data.plane = plane;
     d->data.top = top;
     d->data.bottom = bottom;

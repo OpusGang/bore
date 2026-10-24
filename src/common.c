@@ -36,6 +36,12 @@ struct BoreScratch
     double* ref;
     double* weights;
 
+    // SinglePlaneWeighted only
+    double* ratio;
+    int spatial_radius;
+    double* spatial;          // exp(-(d * d) / (sigmaS * sigmaS)), d in [-spatial_radius, spatial_radius]
+    double* spatial_exponent; // -(d * d) / (sigmaS * sigmaS)
+
     // MultiPlane only
     gsl_matrix* x;
     gsl_vector* y;
@@ -44,14 +50,14 @@ struct BoreScratch
     gsl_multifit_linear_workspace* ws;
 };
 
-BoreScratch* boreScratchAlloc(int w, int h, int multi)
+BoreScratch* boreScratchAlloc(const LinearRegressionData* d, int w, int h)
 {
     const size_t n = (size_t)(w > h ? w : h);
     BoreScratch* s = calloc(1, sizeof(BoreScratch));
     if (!s)
         return NULL;
 
-    if (multi)
+    if (d->mode == LINREG_MODE_MULTI)
     {
         s->x = gsl_matrix_alloc(n, 3);
         s->y = gsl_vector_alloc(n);
@@ -76,6 +82,30 @@ BoreScratch* boreScratchAlloc(int w, int h, int multi)
         }
     }
 
+    if (d->mode == LINREG_MODE_SINGLE_WEIGHTED)
+    {
+        // a window never spans more than n samples, so |k - i| <= n - 1
+        const int radius = d->ref_line_size < (int)n - 1 ? d->ref_line_size : (int)n - 1;
+        const double sigmaS = d->sigmaS;
+
+        s->spatial_radius = radius;
+        s->ratio = malloc(sizeof(double) * n);
+        s->spatial = malloc(sizeof(double) * (2 * (size_t)radius + 1));
+        s->spatial_exponent = malloc(sizeof(double) * (2 * (size_t)radius + 1));
+        if (!s->ratio || !s->spatial || !s->spatial_exponent)
+        {
+            boreScratchFree(s);
+            return NULL;
+        }
+
+        for (int k = -radius; k <= radius; k++)
+        {
+            // same expressions as evaluated per pixel before, so results are bit-identical
+            s->spatial_exponent[k + radius] = -(k * k) / (sigmaS * sigmaS);
+            s->spatial[k + radius] = exp(-(k * k) / (sigmaS * sigmaS));
+        }
+    }
+
     return s;
 }
 
@@ -87,6 +117,9 @@ void boreScratchFree(BoreScratch* s)
     free(s->cur);
     free(s->ref);
     free(s->weights);
+    free(s->ratio);
+    free(s->spatial);
+    free(s->spatial_exponent);
     if (s->x)
         gsl_matrix_free(s->x);
     if (s->y)
@@ -616,12 +649,20 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
     }
 }
 
+// Fills the per-line ratio buffer ref[i] / cur[i] used by the weighted fits.
+static void computeRatios(const double* __restrict cur, const double* __restrict ref, double* __restrict ratio, int n)
+{
+    for (int i = 0; i < n; i++)
+        ratio[i] = ref[i] / cur[i];
+}
+
 void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
     const int ref_line_size = p->ref_line_size;
-    const double sigmaS = p->sigmaS;
-    const double sigmaR = p->sigmaR;
-    const double sigmaD = p->sigmaD;
+    const double sigmaR2 = p->sigmaR * p->sigmaR;
+    const double sigmaD2 = p->sigmaD * p->sigmaD;
+    // spatial[d] = exp(-(d * d) / (sigmaS * sigmaS)) for d in [-spatial_radius, spatial_radius]
+    const double* const spatial = p->scratch->spatial + p->scratch->spatial_radius;
 
     int sign = 1;
     if (row >= h / 2)
@@ -637,6 +678,7 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
+    double* const ratio = p->scratch->ratio;
     double* const weights = p->scratch->weights;
 
     dstp += row * stride;
@@ -645,6 +687,7 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
     }
+    computeRatios(cur, ref, ratio, w);
 
     double w_s;
     double w_c;
@@ -661,18 +704,11 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
 
         for (k = start; k < stop; k++)
         {
-            w_s = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS));
-            w_c = exp(-((cur[k] - cur[i]) * (cur[k] - cur[i]) / (sigmaR * sigmaR)));
-            w_d = exp(-(ref[k] / cur[k] - ref[i] / cur[i]) * (ref[k] / cur[k] - ref[i] / cur[i]) / (sigmaD * sigmaD));
+            w_s = spatial[k - i];
+            w_c = exp(-((cur[k] - cur[i]) * (cur[k] - cur[i]) / sigmaR2));
+            w_d = exp(-(ratio[k] - ratio[i]) * (ratio[k] - ratio[i]) / sigmaD2);
             weights[k - start] = w_s * w_c * w_d;
-            /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((cur[k] - cur[ref_line_size]) * (cur[k] - cur[ref_line_size])) / (sigmaR * sigmaR) - (ref[k] / cur[k] - cur[ref_line_size] / dstp[sign * stride + i]) * (ref[k] / cur[k] - cur[ref_line_size] / dstp[sign * stride + i]) / (sigmaD * sigmaD)); */
-            /* weights[k] = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS) - ((cur[k] - cur[ref_line_size]) * (cur[k] - cur[ref_line_size])) / (sigmaR * sigmaR)); */
-            /* if (i == 1370) { */
-            /*     dstp[j] = w_d;//(dstp[j] - dstp[i]) * (dstp[j] - dstp[i]); */
-            /*     dstp[i] = 1.0; */
-            /* } */
         }
-
 
         status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
@@ -684,9 +720,10 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
 void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
     const int ref_line_size = p->ref_line_size;
-    const double sigmaS = p->sigmaS;
-    const double sigmaR = p->sigmaR;
-    const double sigmaD = p->sigmaD;
+    const double sigmaR2 = p->sigmaR * p->sigmaR;
+    const double sigmaD2 = p->sigmaD * p->sigmaD;
+    // spatial_exponent[d] = -(d * d) / (sigmaS * sigmaS) for d in [-spatial_radius, spatial_radius]
+    const double* const spatial_exponent = p->scratch->spatial_exponent + p->scratch->spatial_radius;
 
     int sign = 1;
     if (column >= w / 2)
@@ -702,6 +739,7 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
+    double* const ratio = p->scratch->ratio;
     double* const weights = p->scratch->weights;
 
     dstp += column;
@@ -710,6 +748,7 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
     }
+    computeRatios(cur, ref, ratio, h);
 
     for (i = 0; i < h; i++)
     {
@@ -722,7 +761,7 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
 
         for (k = start; k < stop; k++)
         {
-            weights[k - start] = exp(-((k - i) * (k - i)) / (sigmaS * sigmaS) - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / (sigmaR * sigmaR) - (ref[k] / cur[k] - ref[i] / cur[i]) * (ref[k] / cur[k] - ref[i] / cur[i]) / (sigmaD * sigmaD));
+            weights[k - start] = exp(spatial_exponent[k - i] - ((cur[k] - cur[i]) * (cur[k] - cur[i])) / sigmaR2 - (ratio[k] - ratio[i]) * (ratio[k] - ratio[i]) / sigmaD2);
         }
 
         status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
@@ -732,13 +771,12 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
     }
 }
 
-
 void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
     const int ref_line_size = p->ref_line_size;
-    const double sigmaS = p->sigmaS;
-    const double sigmaR = p->sigmaR;
-    const double sigmaD = p->sigmaD;
+    const double sigmaR2 = p->sigmaR * p->sigmaR;
+    const double sigmaD2 = p->sigmaD * p->sigmaD;
+    const double* const spatial = p->scratch->spatial + p->scratch->spatial_radius;
     const float* wmaskp = p->wmaskp;
     const ptrdiff_t wmaskstride = p->wmaskstride;
     const int mask_dist = p->mask_dist;
@@ -758,6 +796,8 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
+    double* const ratio = p->scratch->ratio;
+    double* const weights = p->scratch->weights;
 
     dstp += row * stride;
     wmaskp += row * wmaskstride;
@@ -766,12 +806,11 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
         cur[i] = dstp[i];
         ref[i] = dstp[sign * stride + i];
     }
+    computeRatios(cur, ref, ratio, w);
 
     double w_s;
     double w_c;
     double w_d;
-
-    double* const weights = p->scratch->weights;
 
     sign *= mask_dist;
 
@@ -787,31 +826,26 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
         for (k = 0; k < stop - start; k++)
         {
             j = k + start;
-            
-            w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-            w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / (sigmaR * sigmaR)));
-            w_d = exp(-(ref[j] / cur[j] - ref[i] / cur[i]) * (ref[j] / cur[j] - ref[i] / cur[i]) / (sigmaD * sigmaD));
+
+            w_s = spatial[j - i];
+            w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / sigmaR2));
+            w_d = exp(-(ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2);
             weights[k] = w_s * w_c * w_d * wmaskp[j] * wmaskp[sign * wmaskstride + j];
-            /* if (i == 1370) { */
-            /*     dstp[j] = w_d;//(dstp[j] - dstp[i]) * (dstp[j] - dstp[i]); */
-            /*     dstp[i] = 1.0; */
-            /* } */
         }
 
         status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1))
             dstp[i] *= (float)c1;
-
     }
 }
 
 void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p)
 {
     const int ref_line_size = p->ref_line_size;
-    const double sigmaS = p->sigmaS;
-    const double sigmaR = p->sigmaR;
-    const double sigmaD = p->sigmaD;
+    const double sigmaR2 = p->sigmaR * p->sigmaR;
+    const double sigmaD2 = p->sigmaD * p->sigmaD;
+    const double* const spatial = p->scratch->spatial + p->scratch->spatial_radius;
     const float* wmaskp = p->wmaskp;
     const ptrdiff_t wmaskstride = p->wmaskstride;
     const int mask_dist = p->mask_dist;
@@ -831,7 +865,7 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
 
     double* const cur = p->scratch->cur;
     double* const ref = p->scratch->ref;
-
+    double* const ratio = p->scratch->ratio;
     double* const weights = p->scratch->weights;
 
     wmaskp += column;
@@ -841,6 +875,7 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
         cur[i] = dstp[i * stride];
         ref[i] = dstp[sign + stride * i];
     }
+    computeRatios(cur, ref, ratio, h);
 
     double w_s, w_c, w_d;
 
@@ -858,28 +893,16 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
         for (k = 0; k < stop - start; k++)
         {
             j = k + start;
-            
-            /* cur_cur = cur[i]; */
-            /* cur_ref = cur[j]; */
-            /* ref_cur = ref[i]; */
-            /* ref_ref = ref[j]; */
-            /* w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS)); */
-            /* w_c = exp(-((ref_ref - ref_cur) * (ref_ref - ref_cur) + (cur_ref - cur_cur) * (cur_ref - cur_cur)) / (sigmaR * sigmaR)); */
-            /* w_d = exp(-(ref_ref / cur_ref - ref_cur / cur_cur) * (ref_ref / cur_ref - ref_cur / cur_cur) / (sigmaD * sigmaD)); */
-            w_s = exp(-((j - i) * (j - i)) / (sigmaS * sigmaS));
-            w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / (sigmaR * sigmaR)));
-            w_d = exp(-(ref[j] / cur[j] - ref[i] / cur[i]) * (ref[j] / cur[j] - ref[i] / cur[i]) / (sigmaD * sigmaD));
+
+            w_s = spatial[j - i];
+            w_c = exp(-((ref[j] - ref[i]) * (ref[j] - ref[i]) / sigmaR2));
+            w_d = exp(-(ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2);
             weights[k] = w_s * w_c * w_d * wmaskp[j * wmaskstride] * wmaskp[sign + wmaskstride * j];
-            /* if (i == 880) { */
-            /*     dstp[j * stride] = weights[k]; */
-            /*     dstp[i * stride] = 0.5; */
-            /* } */
         }
 
         status = gsl_fit_wmul(cur + start, 1, weights, 1, ref + start, 1, stop - start, &c1, &cov11, &sumsq);
 
         if (!status && isfinite(c1))
             dstp[i * stride] *= (float)c1;
-
     }
 }
