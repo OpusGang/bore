@@ -572,3 +572,11 @@ def test_max_border_references_inner_line(core, side):
         adj = core.bore.SinglePlaneDebug(src, right=W // 2).get_frame(0).props["BoreAdjustment"][0]
         cur, ref = deg[:, line], deg[:, line - 1]
     assert adj == pytest.approx(np.dot(cur, ref) / np.dot(cur, cur), rel=1e-6)
+
+
+def test_gsl_error_does_not_abort(core):
+    """Regression: a GSL error (here n < p in gsl_multifit_linear for a 2-pixel column)
+    used to abort() the host process via GSL's default error handler."""
+    rc, out = run_isolated("core.bore.MultiPlane(core.std.BlankClip(format=vs.RGBS, width=64, height=2, color=[0.5, 0.4, 0.3]), left=1)")
+    assert rc == 0, f"process crashed (rc={rc})"
+    assert out.startswith("ACCEPTED"), out

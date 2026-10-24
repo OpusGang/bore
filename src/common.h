@@ -49,6 +49,8 @@ extern "C" {
         void (*processColumn)(int, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
     } LinearRegressionData;
 
+    void boreInit(void);
+
     void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
     void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);
     void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...);

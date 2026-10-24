@@ -17,8 +17,17 @@
 #include "common.h"
 #include <stdio.h>
 
+#include <gsl/gsl_errno.h>
 #include <gsl/gsl_fit.h>
 #include <gsl/gsl_multifit.h>
+
+void boreInit(void)
+{
+    // GSL's default error handler calls abort(), which would take down the host
+    // application (e.g. on an allocation failure inside gsl_multifit_linear).
+    // All GSL return codes are checked, so report errors through them instead.
+    gsl_set_error_handler_off();
+}
 
 void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, ...)
 {

@@ -517,6 +517,8 @@ const char* AVSC_CC avisynth_c_plugin_init(AVS_ScriptEnvironment* env)
         return avisynth_c_api_loader::get_last_error();
     }
 
+    boreInit();
+
     g_avs_api->avs_add_function(env, "bore_SinglePlane",
         "c"
         "[left]i"
