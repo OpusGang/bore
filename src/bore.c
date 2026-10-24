@@ -20,6 +20,16 @@
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
 
+#ifndef BORE_VERSION_MAJOR
+#define BORE_VERSION_MAJOR 1
+#define BORE_VERSION_MINOR 0
+#define BORE_VERSION_PATCH 1
+#endif
+
+// VapourSynth plugin versions only have major and minor parts: encode minor.patch as
+// minor * 100 + patch (1.0.1 -> 1.1, 1.2.0 -> 1.200), which keeps versions ordered.
+#define BORE_VS_VERSION VS_MAKE_VERSION(BORE_VERSION_MAJOR, BORE_VERSION_MINOR * 100 + BORE_VERSION_PATCH)
+
 typedef struct {
     union
     {
@@ -495,7 +505,7 @@ fail:
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     boreInit();
-    vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->configPlugin("ng.opusga.bore", "bore", "bore plugin", BORE_VS_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("SinglePlane", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;weight_mask:vnode:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_SINGLE), plugin);
     vspapi->registerFunction("MultiPlane", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;weight_mask:vnode:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_MULTI), plugin);
     vspapi->registerFunction("SinglePlaneLimited", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;weight_mask:vnode:opt;ref_line_size:int:opt;plane:int:opt;", "clip:vnode;", linearRegressionCreate, (void *)(LINREG_MODE_SINGLE_LIMITED), plugin);

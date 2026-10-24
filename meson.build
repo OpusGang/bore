@@ -8,6 +8,14 @@ python = find_program('python3', 'python', required: true)
 
 includedirs = ['src']
 
+# Plugin version reported to the frame server, derived from the project version
+bore_version = meson.project_version().split('-')[0].split('.')
+add_project_arguments(
+    '-DBORE_VERSION_MAJOR=' + bore_version[0],
+    '-DBORE_VERSION_MINOR=' + (bore_version.length() > 1 ? bore_version[1] : '0'),
+    '-DBORE_VERSION_PATCH=' + (bore_version.length() > 2 ? bore_version[2] : '0'),
+    language : ['c', 'cpp'])
+
 sources = [
      'src/common.c',
      'src/common.h'

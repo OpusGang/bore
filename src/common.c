@@ -15,7 +15,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "common.h"
-#include <stdio.h>
+
+#include <math.h>
 
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_fit.h>
