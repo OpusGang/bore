@@ -138,10 +138,11 @@ void processRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict ds
 
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
+        ref[i] = tgtp[i];
     }
 
     double cov11, sumsq;
@@ -172,10 +173,11 @@ void processColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restr
 
 
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
+        ref[i] = tgtp[i * p->tgtstride];
     }
 
     double cov11, sumsq;
@@ -211,12 +213,16 @@ void processRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restr
 
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
-        weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
+        ref[i] = tgtp[i];
+        float wt = wmaskp[i];
+        if (p->tgt_off)
+            wt *= wmaskp[sign * mask_dist * wmaskstride + i];
+        weights[i] = wt;
     }
 
     double cov11, sumsq;
@@ -253,11 +259,15 @@ void processColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* _
 
     wmaskp += column;
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
-        weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
+        ref[i] = tgtp[i * p->tgtstride];
+        float wt = wmaskp[i * wmaskstride];
+        if (p->tgt_off)
+            wt *= wmaskp[sign * mask_dist + wmaskstride * i];
+        weights[i] = wt;
     }
 
     double cov11, sumsq;
@@ -289,10 +299,11 @@ void debugRowSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp
 
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
+        ref[i] = tgtp[i];
     }
 
     int status = gsl_fit_mul(cur, 1, ref, 1, w, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
@@ -316,10 +327,11 @@ void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restric
 
 
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
+        ref[i] = tgtp[i * p->tgtstride];
     }
 
     int status = gsl_fit_mul(cur, 1, ref, 1, h, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
@@ -347,12 +359,16 @@ void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restric
 
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
-        weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
+        ref[i] = tgtp[i];
+        float wt = wmaskp[i];
+        if (p->tgt_off)
+            wt *= wmaskp[sign * mask_dist * wmaskstride + i];
+        weights[i] = wt;
     }
 
     int status = gsl_fit_wmul(cur, 1, weights, 1, ref, 1, w, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
@@ -381,11 +397,15 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
 
     wmaskp += column;
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
-        weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
+        ref[i] = tgtp[i * p->tgtstride];
+        float wt = wmaskp[i * wmaskstride];
+        if (p->tgt_off)
+            wt *= wmaskp[sign * mask_dist + wmaskstride * i];
+        weights[i] = wt;
     }
 
     int status = gsl_fit_wmul(cur, 1, weights, 1, ref, 1, h, &c1_cov11_sumsq[0], &c1_cov11_sumsq[1], &c1_cov11_sumsq[2]);
@@ -396,7 +416,8 @@ void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __r
     }
 }
 
-void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch)
+void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3,
+    const float* tgtp, ptrdiff_t tgtstride, int tgt_off, BoreScratch* scratch)
 {
     int i;
     int sign = 1;
@@ -407,11 +428,12 @@ void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* 
     dstp1 += stride * row;
     dstp2 += stride * row;
     dstp3 += stride * row;
+    tgtp += (row + sign * tgt_off) * tgtstride;
     gsl_vector_view y = gsl_vector_subvector(scratch->y, 0, w);
     gsl_matrix_view x = gsl_matrix_submatrix(scratch->x, 0, 0, w, 3);
     for (i = 0; i < w; i++)
     {
-        gsl_vector_set(&y.vector, i, dstp[i + stride * sign]);
+        gsl_vector_set(&y.vector, i, tgtp[i]);
         gsl_matrix_set(&x.matrix, i, 0, dstp1[i]);
         gsl_matrix_set(&x.matrix, i, 1, dstp2[i]);
         gsl_matrix_set(&x.matrix, i, 2, dstp3[i]);
@@ -431,7 +453,8 @@ void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* 
     }
 }
 
-void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch)
+void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3,
+    const float* tgtp, ptrdiff_t tgtstride, int tgt_off, BoreScratch* scratch)
 {
     int i;
     int j;
@@ -443,7 +466,7 @@ void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, f
     gsl_matrix_view x = gsl_matrix_submatrix(scratch->x, 0, 0, h, 3);
     for (i = 0; i < h; i++)
     {
-        gsl_vector_set(&y.vector, i, dstp[i * stride + column + sign]);
+        gsl_vector_set(&y.vector, i, tgtp[i * tgtstride + column + sign * tgt_off]);
         gsl_matrix_set(&x.matrix, i, 0, dstp1[i * stride + column]);
         gsl_matrix_set(&x.matrix, i, 1, dstp2[i * stride + column]);
         gsl_matrix_set(&x.matrix, i, 2, dstp3[i * stride + column]);
@@ -549,10 +572,11 @@ void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict
     double* const ref = p->scratch->ref;
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
+        ref[i] = tgtp[i];
     }
 
     slidingWindowFit(cur, ref, NULL, w, ref_line_size, dstp, 1);
@@ -572,10 +596,11 @@ void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __re
     double* const ref = p->scratch->ref;
 
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
+        ref[i] = tgtp[i * p->tgtstride];
     }
 
     slidingWindowFit(cur, ref, NULL, h, ref_line_size, dstp, stride);
@@ -599,12 +624,16 @@ void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __re
     double* const weights = p->scratch->weights;
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
-        weights[i] = wmaskp[i] * wmaskp[sign * mask_dist * wmaskstride + i];
+        ref[i] = tgtp[i];
+        float wt = wmaskp[i];
+        if (p->tgt_off)
+            wt *= wmaskp[sign * mask_dist * wmaskstride + i];
+        weights[i] = wt;
     }
 
     slidingWindowFit(cur, ref, weights, w, ref_line_size, dstp, 1);
@@ -629,11 +658,15 @@ void processColumnSLRRefMasked(int column, int w, int h, ptrdiff_t stride, float
 
     wmaskp += column;
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
-        weights[i] = wmaskp[i * wmaskstride] * wmaskp[sign * mask_dist + wmaskstride * i];
+        ref[i] = tgtp[i * p->tgtstride];
+        float wt = wmaskp[i * wmaskstride];
+        if (p->tgt_off)
+            wt *= wmaskp[sign * mask_dist + wmaskstride * i];
+        weights[i] = wt;
     }
 
     slidingWindowFit(cur, ref, weights, h, ref_line_size, dstp, stride);
@@ -668,10 +701,11 @@ void processRowWSLR(int row, int w, int h, ptrdiff_t stride, float* __restrict d
     double* const ratio = p->scratch->ratio;
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
+        ref[i] = tgtp[i];
     }
     computeRatios(cur, ref, ratio, w);
 
@@ -723,10 +757,11 @@ void processColumnWSLR(int column, int w, int h, ptrdiff_t stride, float* __rest
     double* const ratio = p->scratch->ratio;
 
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
+        ref[i] = tgtp[i * p->tgtstride];
     }
     computeRatios(cur, ref, ratio, h);
 
@@ -780,11 +815,12 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
     double* const ratio = p->scratch->ratio;
 
     dstp += row * stride;
+    const float* tgtp = p->tgtp + (row + sign * p->tgt_off) * p->tgtstride;
     wmaskp += row * wmaskstride;
     for (i = 0; i < w; i++)
     {
         cur[i] = dstp[i];
-        ref[i] = dstp[sign * stride + i];
+        ref[i] = tgtp[i];
     }
     computeRatios(cur, ref, ratio, w);
 
@@ -805,7 +841,9 @@ void processRowWSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __rest
             j = k + start;
 
             // exp(a) * exp(b) * exp(c) evaluated as exp(a + b + c)
-            const double wt = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j] * wmaskp[sign * wmaskstride + j];
+            double wt = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j];
+            if (p->tgt_off)
+                wt *= wmaskp[sign * wmaskstride + j];
             sxy += wt * cur[j] * ref[j];
             sxx += wt * cur[j] * cur[j];
         }
@@ -844,10 +882,11 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
 
     wmaskp += column;
     dstp += column;
+    const float* tgtp = p->tgtp + column + sign * p->tgt_off;
     for (i = 0; i < h; i++)
     {
         cur[i] = dstp[i * stride];
-        ref[i] = dstp[sign + stride * i];
+        ref[i] = tgtp[i * p->tgtstride];
     }
     computeRatios(cur, ref, ratio, h);
 
@@ -868,7 +907,9 @@ void processColumnWSLRMasked(int column, int w, int h, ptrdiff_t stride, float* 
             j = k + start;
 
             // exp(a) * exp(b) * exp(c) evaluated as exp(a + b + c)
-            const double wt = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j * wmaskstride] * wmaskp[sign + wmaskstride * j];
+            double wt = exp(spatial_exponent[j - i] - ((ref[j] - ref[i]) * (ref[j] - ref[i])) / sigmaR2 - (ratio[j] - ratio[i]) * (ratio[j] - ratio[i]) / sigmaD2) * wmaskp[j * wmaskstride];
+            if (p->tgt_off)
+                wt *= wmaskp[sign + wmaskstride * j];
             sxy += wt * cur[j] * ref[j];
             sxx += wt * cur[j] * cur[j];
         }
