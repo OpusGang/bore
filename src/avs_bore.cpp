@@ -111,6 +111,9 @@ static AVS_VideoFrame* AVSC_CC singlePlaneGetFrame(AVS_FilterInfo* fi, int n)
     params.sigmaD = data->sigmaD;
     params.c1_cov11_sumsq = c1_cov11_sumsq;
     params.scratch = scratch;
+    params.tgtp = dstp;
+    params.tgtstride = stride;
+    params.tgt_off = 1;
 
     AVS_VideoFrame* weight_mask{ nullptr };
     if (d->weight_mask)
@@ -164,13 +167,13 @@ static AVS_VideoFrame* AVSC_CC multiPlaneGetFrame(AVS_FilterInfo* fi, int n)
     }
 
     for (int row{ data->top - 1 }; row > -1; --row)
-        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, dstp, stride, 1, scratch);
     for (int row{ h - data->bottom }; row < h; ++row)
-        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        processRowMLR(row, w, h, stride, dstp, dstp1, dstp2, dstp3, dstp, stride, 1, scratch);
     for (int column{ data->left - 1 }; column > -1; --column)
-        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, dstp, stride, 1, scratch);
     for (int column{ w - data->right }; column < w; ++column)
-        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, scratch);
+        processColumnMLR(column, w, h, stride, dstp, dstp1, dstp2, dstp3, dstp, stride, 1, scratch);
 
     boreScratchFree(scratch);
 

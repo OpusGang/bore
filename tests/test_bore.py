@@ -331,6 +331,103 @@ def test_multiplane_ignores_weight_mask(core):
 
 
 # --------------------------------------------------------------------------
+# ref
+# --------------------------------------------------------------------------
+
+def scaled_borders(img, factors=(0.5, 0.7, 0.9), **kw):
+    """Scale each border line by a constant, a degradation the ref clip undoes exactly."""
+    return degrade(img, factors=factors, **kw)
+
+
+@pytest.mark.parametrize("masked", [False, True])
+@pytest.mark.parametrize("side", SIDES)
+@pytest.mark.parametrize("name,extra", CORRECTING, ids=lambda v: v if isinstance(v, str) else repr(v))
+def test_ref_restores_border(core, name, extra, side, masked):
+    """With a clean ref, every line is fitted against ref, so constant gains are undone exactly."""
+    clean = smooth_image(W, H, seed=3)
+    deg = scaled_borders(clean, **{side: 3})
+    kw = dict(extra)
+    if masked:
+        kw["weight_mask"] = gray_clip(core, np.ones((H, W), np.float32))
+    out = get_planes(getattr(core.bore, name)(gray_clip(core, deg), ref=gray_clip(core, clean), **{side: 3}, **kw))[0]
+    np.testing.assert_allclose(out, clean, rtol=1e-5)
+
+
+@pytest.mark.parametrize("name,extra", CORRECTING, ids=lambda v: v if isinstance(v, str) else repr(v))
+def test_ref_is_used_instead_of_neighbour(core, name, extra):
+    """ref's border differs from the clip's neighbour line, the output must follow ref."""
+    clean = smooth_image(W, H, seed=4)
+    target = clean.copy()
+    target[0] *= 1.3
+    deg = scaled_borders(clean, top=1)
+    out = get_planes(getattr(core.bore, name)(gray_clip(core, deg), ref=gray_clip(core, target), top=1, **extra))[0]
+    np.testing.assert_allclose(out[0], target[0], rtol=1e-5)
+    np.testing.assert_array_equal(out[1:], deg[1:])
+
+
+@pytest.mark.parametrize("name", ("SinglePlane", "SinglePlaneLimited", "SinglePlaneWeighted"))
+def test_ref_equal_to_clip_is_identity(core, name):
+    deg = scaled_borders(smooth_image(W, H, seed=5), top=2, bottom=2, left=2, right=2)
+    src = gray_clip(core, deg)
+    out = get_planes(getattr(core.bore, name)(src, ref=src, top=2, bottom=2, left=2, right=2))[0]
+    np.testing.assert_allclose(out, deg, rtol=1e-6)
+
+
+def test_ref_weight_mask_excludes_outliers(core):
+    """With ref only the current line's mask applies, outliers are still excluded."""
+    clean, deg, mask, good = outlier_case(core)
+    out = get_planes(core.bore.SinglePlane(gray_clip(core, deg), ref=gray_clip(core, clean), top=1,
+                                           weight_mask=gray_clip(core, mask)))[0]
+    np.testing.assert_allclose(out[0, good], clean[0, good], rtol=1e-5)
+
+
+@pytest.mark.parametrize("side", SIDES)
+def test_ref_multiplane(core, side):
+    clean, deg, src = three_plane_clip(core, "RGBS", side, n=2)
+    ref = make_clip(core, [clean], vs.RGBS)
+    out = get_planes(core.bore.MultiPlane(src, ref=ref, **{side: 2}))
+    np.testing.assert_allclose(out[0], clean[0], rtol=1e-4, atol=1e-6)
+    np.testing.assert_array_equal(out[1], deg[1])
+    np.testing.assert_array_equal(out[2], deg[2])
+
+
+def test_ref_debug(core):
+    clean = smooth_image(W, H, seed=6)
+    factors = (0.5, 0.7)
+    deg = scaled_borders(clean, factors=factors, top=2)
+    f = core.bore.SinglePlaneDebug(gray_clip(core, deg), ref=gray_clip(core, clean), top=2).get_frame(0)
+    np.testing.assert_array_equal(np.asarray(f[0]), deg)
+    # inner to outer
+    np.testing.assert_allclose(f.props["BoreAdjustment"], [1 / factors[1], 1 / factors[0]], rtol=1e-5)
+
+
+def test_ref_chroma_plane(core):
+    """ref is read from the processed plane of a subsampled clip."""
+    y = smooth_image(W, H, seed=8)
+    u = smooth_image(W // 2, H // 2, seed=9)
+    v = smooth_image(W // 2, H // 2, seed=10)
+    deg_u = scaled_borders(u, left=2)
+    src = make_clip(core, [[y, deg_u, v]], vs.YUV420PS)
+    ref = make_clip(core, [[y, u, v]], vs.YUV420PS)
+    out = get_planes(core.bore.SinglePlane(src, ref=ref, left=2, plane=1))
+    np.testing.assert_allclose(out[1], u, rtol=1e-5)
+    np.testing.assert_array_equal(out[0], y)
+
+
+@pytest.mark.parametrize("name", ALL_FILTERS)
+@pytest.mark.parametrize("ref_kind", ["format", "size", "length"])
+def test_rejects_mismatched_ref(core, name, ref_kind):
+    src = core.std.BlankClip(format=vs.RGBS, width=W, height=H, length=2)
+    ref = {
+        "format": core.std.BlankClip(format=vs.YUV444PS, width=W, height=H, length=2),
+        "size": core.std.BlankClip(format=vs.RGBS, width=W, height=H // 2, length=2),
+        "length": core.std.BlankClip(format=vs.RGBS, width=W, height=H, length=3),
+    }[ref_kind]
+    with pytest.raises(vs.Error, match="ref"):
+        getattr(core.bore, name)(src, ref=ref, top=1)
+
+
+# --------------------------------------------------------------------------
 # Debug
 # --------------------------------------------------------------------------
 

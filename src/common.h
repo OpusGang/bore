@@ -45,6 +45,9 @@ extern "C" {
         const float* wmaskp; // weight mask plane, NULL if unused
         ptrdiff_t wmaskstride;
         int mask_dist; // distance from the current line to the first unprocessed (clean) line
+        const float* tgtp; // plane the line is fitted against: dstp, or the ref clip's plane
+        ptrdiff_t tgtstride;
+        int tgt_off; // 1 to fit against the inner neighbour line, 0 for the same line in ref
         double* c1_cov11_sumsq; // debug functions: fit results of the line
         BoreScratch* scratch;
     } BoreLineParams;
@@ -81,8 +84,10 @@ extern "C" {
     void debugColumnSLR(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void debugRowSLRMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void debugColumnSLRMasked(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
-    void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch);
-    void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3, BoreScratch* scratch);
+    void processRowMLR(int row, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3,
+        const float* tgtp, ptrdiff_t tgtstride, int tgt_off, BoreScratch* scratch);
+    void processColumnMLR(int column, int w, int h, ptrdiff_t stride, float* dstp, float* dstp1, float* dstp2, float* dstp3,
+        const float* tgtp, ptrdiff_t tgtstride, int tgt_off, BoreScratch* scratch);
     void processRowSLRRef(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void processColumnSLRRef(int column, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);
     void processRowSLRRefMasked(int row, int w, int h, ptrdiff_t stride, float* __restrict dstp, const BoreLineParams* p);

@@ -24,6 +24,7 @@ The values are in order of operation: top, bottom, left, right, each from the in
 | Name | Type | Default | Valid range | Used by | Meaning |
 |---|---|---|---|---|---|
 | `clip` | clip | required | 32-bit float, planar, constant format | all | Input clip. |
+| `ref` | clip | none | same format, dimensions and length as `clip` | all, VapourSynth only | Clip with clean borders. If set, each line is fitted against the same line in `ref` instead of its inner neighbour, and a pixel's `weight_mask` weight is just its own mask value. |
 | `left`, `right` | int | 0 | 0 to plane width / 2 | all | Number of columns to fix at the left/right border. |
 | `top`, `bottom` | int | 0 | 0 to plane height / 2 | all | Number of rows to fix at the top/bottom border. |
 | `weight_mask` | clip | none | 32-bit float, one plane | all except MultiPlane | Per-pixel weights for the fit, useful for excluding edges and clipped areas. A pixel's weight is its mask value times the mask value at the same position on the first clean line. |
@@ -43,11 +44,11 @@ Notes:
 ## VapourSynth usage
 
 ```
-core.bore.SinglePlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
-core.bore.MultiPlane(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
-core.bore.SinglePlaneLimited(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int ref_line_size=100, int plane=0)
-core.bore.SinglePlaneWeighted(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, float sigmaS=50.0, float sigmaR=0.5, float sigmaD=1.5, int ref_line_size=100, int plane=0)
-core.bore.SinglePlaneDebug(clip clip, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
+core.bore.SinglePlane(clip clip, clip ref=None, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
+core.bore.MultiPlane(clip clip, clip ref=None, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
+core.bore.SinglePlaneLimited(clip clip, clip ref=None, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int ref_line_size=100, int plane=0)
+core.bore.SinglePlaneWeighted(clip clip, clip ref=None, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, float sigmaS=50.0, float sigmaR=0.5, float sigmaD=1.5, int ref_line_size=100, int plane=0)
+core.bore.SinglePlaneDebug(clip clip, clip ref=None, int left=0, int right=0, int top=0, int bottom=0, clip weight_mask=None, int plane=0)
 ```
 
 Example:
